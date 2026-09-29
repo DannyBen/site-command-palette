@@ -22,22 +22,35 @@
     if (palette) {
       suppressedKeyups.add(event.code);
       event.stopImmediatePropagation();
+
+      if (isPaletteShortcut(event, true)) {
+        event.preventDefault();
+        closePalette();
+        return;
+      }
+
       handlePaletteKeydown(event);
       return;
     }
 
-    const noOtherModifiers = !event.ctrlKey && !event.metaKey && !event.shiftKey;
-    const altBacktick = event.altKey && noOtherModifiers;
-    const bareBacktick = !event.altKey && noOtherModifiers && !isEditable(event.composedPath()[0]);
-
-    if (event.code !== "Backquote" || event.repeat || opening || (!altBacktick && !bareBacktick)) {
-      return;
-    }
+    if (opening || !isPaletteShortcut(event, false)) return;
 
     event.preventDefault();
     event.stopImmediatePropagation();
     suppressedKeyups.add(event.code);
     openPalette();
+  }
+
+  function isPaletteShortcut(event, allowBareInEditable) {
+    if (event.code !== "Backquote" || event.repeat) return false;
+
+    const noOtherModifiers = !event.ctrlKey && !event.metaKey && !event.shiftKey;
+    const altBacktick = event.altKey && noOtherModifiers;
+    const bareBacktick = !event.altKey && noOtherModifiers && (
+      allowBareInEditable || !isEditable(event.composedPath()[0])
+    );
+
+    return altBacktick || bareBacktick;
   }
 
   function isEditable(target) {

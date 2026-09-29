@@ -31,6 +31,8 @@ the in-page palette requires a content script on those sites.
 - The remove button deletes a command.
 - Bare backtick opens the palette outside editable fields. Alt+Backtick also
   opens it from inputs, textareas, and editable content.
+- Bare backtick and Alt+Backtick both close an open palette, including while
+  the search field is focused or filtered.
 - While the palette is open, its keyboard events are stopped before they reach
   the underlying page's shortcut handlers.
 
