@@ -22,8 +22,9 @@ the in-page palette requires a content script on those sites.
 - **Add current page** fills in the current page title and URL.
 - Typing performs fuzzy filtering.
 - Up and down arrows change the selected command.
-- Enter opens the selected command in the current tab.
+- Enter opens the selected link or runs the selected built-in action.
 - Alt+A opens the add-current-page form while the palette is open.
+- Alt+T opens the palette action list filtered to `/theme`.
 - Alt+E edits the selected command while the palette is open.
 - Alt+X deletes the selected command while the palette is open.
 - Escape returns from the add form, clears an active filter, and then closes the
@@ -35,5 +36,11 @@ the in-page palette requires a content script on those sites.
   the search field is focused or filtered.
 - While the palette is open, its keyboard events are stopped before they reach
   the underlying page's shortcut handlers.
+- Typing `/` shows built-in actions in the same result list as saved links.
+- `/add` opens the add-current-page form.
+- `/theme` offers global, per-site Light, and per-site Dark choices. The global
+  theme is Light until a settings page is added.
+- Theme actions apply and refresh the palette in place, retaining the `/theme`
+  filter and selected action.
 
 The palette cannot run on protected Chrome pages such as `chrome://extensions`.

@@ -1,5 +1,6 @@
 (() => {
-  const STORAGE_KEY = "commandsByHostname";
+  const COMMANDS_STORAGE_KEY = "commandsByHostname";
+  const SETTINGS_STORAGE_KEY = "settings";
   const HOST_ID = "site-command-palette-root";
   const stylesheet = fetch(chrome.runtime.getURL("palette.css")).then((response) => {
     if (!response.ok) throw new Error("Could not load palette styles");
@@ -8,7 +9,8 @@
 
   let palette = null;
   let commands = [];
-  let filteredCommands = [];
+  let settings = { theme: "light", siteThemes: {} };
+  let filteredItems = [];
   let selectedIndex = 0;
   let opening = false;
   let editingCommandId = null;
@@ -96,10 +98,23 @@
       !event.ctrlKey &&
       !event.metaKey &&
       event.key.toLocaleLowerCase() === "e" &&
-      filteredCommands.length > 0
+      filteredItems[selectedIndex]?.type === "link"
     ) {
       event.preventDefault();
-      showEditForm(filteredCommands[selectedIndex]);
+      showEditForm(filteredItems[selectedIndex]);
+      return;
+    }
+
+    if (
+      event.altKey &&
+      !event.ctrlKey &&
+      !event.metaKey &&
+      event.key.toLocaleLowerCase() === "t"
+    ) {
+      event.preventDefault();
+      palette.search.value = "/theme";
+      filterAndRender();
+      palette.search.focus();
       return;
     }
 
@@ -108,10 +123,10 @@
       !event.ctrlKey &&
       !event.metaKey &&
       event.key.toLocaleLowerCase() === "x" &&
-      filteredCommands.length > 0
+      filteredItems[selectedIndex]?.type === "link"
     ) {
       event.preventDefault();
-      removeCommand(filteredCommands[selectedIndex].id);
+      removeCommand(filteredItems[selectedIndex].id);
       return;
     }
 
@@ -126,10 +141,10 @@
       event.preventDefault();
       event.stopPropagation();
       moveSelection(-1);
-    } else if (event.key === "Enter" && filteredCommands.length > 0) {
+    } else if (event.key === "Enter" && filteredItems.length > 0) {
       event.preventDefault();
       event.stopPropagation();
-      visitCommand(filteredCommands[selectedIndex]);
+      activateItem(filteredItems[selectedIndex]);
     }
   }
 
@@ -169,7 +184,7 @@
           </header>
           <div class="commands" role="listbox" aria-label="Commands"></div>
           <footer>
-            <span><kbd>↑</kbd><kbd>↓</kbd> select · <kbd>Enter</kbd> open · <kbd>Alt</kbd>+<kbd>A</kbd> add · <kbd>Alt</kbd>+<kbd>E</kbd> edit · <kbd>Alt</kbd>+<kbd>X</kbd> delete · <kbd>Esc</kbd> close</span>
+            <span><kbd>↑</kbd><kbd>↓</kbd> select · <kbd>Enter</kbd> open · <kbd>Alt</kbd>+<kbd>A</kbd> add · <kbd>Alt</kbd>+<kbd>T</kbd> theme · <kbd>Alt</kbd>+<kbd>E</kbd> edit · <kbd>Alt</kbd>+<kbd>X</kbd> delete · <kbd>Esc</kbd> close</span>
           </footer>
         </div>
         <form class="add-view" hidden>
@@ -216,9 +231,10 @@
     overlay.querySelector(".cancel-button").addEventListener("click", showCommandList);
     palette.addView.addEventListener("submit", saveCommand);
 
-    commands = await loadCommands();
+    [commands, settings] = await Promise.all([loadCommands(), loadSettings()]);
 
     if (!palette) return;
+    applyTheme();
     filterAndRender();
     palette.search.focus();
   }
@@ -235,9 +251,9 @@
       return;
     }
 
-    const openButton = event.target.closest("[data-open-command]");
+    const openButton = event.target.closest("[data-activate-item]");
     if (openButton) {
-      visitCommand(filteredCommands[Number(openButton.dataset.openCommand)]);
+      activateItem(filteredItems[Number(openButton.dataset.activateItem)]);
       return;
     }
 
@@ -316,41 +332,54 @@
     filterAndRender();
   }
 
-  function filterAndRender() {
+  function filterAndRender(preferredItemId = null) {
     if (!palette) return;
 
     const query = palette.search.value.trim();
-    filteredCommands = commands
-      .map((command) => {
-        const match = fuzzyMatch(query, command.name);
-        return match ? { ...command, match } : null;
+    const actionMode = query.startsWith("/");
+    const items = actionMode
+      ? getActions()
+      : commands.map((command) => ({ ...command, type: "link" }));
+
+    filteredItems = items
+      .map((item) => {
+        const match = fuzzyMatch(query, item.name);
+        return match ? { ...item, match } : null;
       })
       .filter(Boolean)
-      .sort((left, right) => right.match.score - left.match.score || left.name.localeCompare(right.name));
+      .sort((left, right) => actionMode
+        ? left.order - right.order
+        : right.match.score - left.match.score || left.name.localeCompare(right.name));
 
-    selectedIndex = 0;
-    renderCommands();
+    const preferredIndex = filteredItems.findIndex((item) => item.id === preferredItemId);
+    selectedIndex = preferredIndex >= 0 ? preferredIndex : 0;
+    renderItems(actionMode);
   }
 
-  function renderCommands() {
+  function renderItems(actionMode) {
     palette.commandList.replaceChildren();
 
-    if (filteredCommands.length === 0) {
+    if (filteredItems.length === 0) {
       const empty = document.createElement("p");
       empty.className = "empty";
-      empty.textContent = commands.length === 0
-        ? `No commands saved for ${location.hostname}.`
-        : "No matching commands.";
+
+      if (actionMode) {
+        empty.textContent = "No matching actions.";
+      } else if (commands.length === 0) {
+        empty.textContent = `No commands saved for ${location.hostname}.`;
+      } else {
+        empty.textContent = "No matching commands.";
+      }
+
       palette.commandList.append(empty);
       return;
     }
 
-    filteredCommands.forEach((command, index) => {
+    filteredItems.forEach((item, index) => {
       const row = document.createElement("div");
       const openButton = document.createElement("button");
       const label = document.createElement("strong");
       const address = document.createElement("span");
-      const removeButton = document.createElement("button");
 
       row.className = "command";
       row.setAttribute("role", "option");
@@ -358,47 +387,146 @@
 
       openButton.type = "button";
       openButton.className = "open-command";
-      openButton.dataset.openCommand = String(index);
-      appendHighlightedText(label, command.name, command.match.indices);
-      address.textContent = compactUrl(command.url);
-      address.title = command.url;
+      openButton.dataset.activateItem = String(index);
+      appendHighlightedText(label, item.name, item.match.indices);
+      address.textContent = item.type === "link" ? compactUrl(item.url) : item.detail;
+      address.title = item.type === "link" ? item.url : item.detail;
       openButton.append(label, address);
 
-      removeButton.type = "button";
-      removeButton.className = "remove-command";
-      removeButton.dataset.removeCommand = command.id;
-      removeButton.setAttribute("aria-label", `Remove ${command.name}`);
-      removeButton.title = "Remove command";
-      removeButton.textContent = "×";
+      row.append(openButton);
 
-      row.append(openButton, removeButton);
+      if (item.type === "link") {
+        const removeButton = document.createElement("button");
+        removeButton.type = "button";
+        removeButton.className = "remove-command";
+        removeButton.dataset.removeCommand = item.id;
+        removeButton.setAttribute("aria-label", `Remove ${item.name}`);
+        removeButton.title = "Remove command";
+        removeButton.textContent = "×";
+        row.append(removeButton);
+      }
+
       palette.commandList.append(row);
     });
   }
 
   function moveSelection(offset) {
-    if (filteredCommands.length === 0) return;
+    if (filteredItems.length === 0) return;
 
-    selectedIndex = (selectedIndex + offset + filteredCommands.length) % filteredCommands.length;
-    renderCommands();
+    selectedIndex = (selectedIndex + offset + filteredItems.length) % filteredItems.length;
+    renderItems(palette.search.value.trim().startsWith("/"));
     palette.commandList.children[selectedIndex]?.scrollIntoView({ block: "nearest" });
   }
 
-  function visitCommand(command) {
-    if (command) location.href = command.url;
+  async function activateItem(item) {
+    if (!item) return;
+
+    if (item.type === "link") {
+      location.href = item.url;
+      return;
+    }
+
+    await item.run();
+    if (!palette) return;
+
+    switch (item.afterRun ?? "refresh") {
+      case "close":
+        closePalette();
+        break;
+      case "preserve":
+        break;
+      default:
+        filterAndRender(item.id);
+        palette.search.focus();
+    }
+  }
+
+  function getActions() {
+    const siteTheme = settings.siteThemes[location.hostname] ?? null;
+
+    return [
+      {
+        type: "action",
+        id: "add-current-page",
+        order: 0,
+        name: "/add › Current page",
+        detail: location.hostname,
+        afterRun: "preserve",
+        run: showAddForm
+      },
+      {
+        type: "action",
+        id: "theme-global",
+        order: 10,
+        name: "/theme › Use global setting",
+        detail: siteTheme === null
+          ? `Current · ${capitalize(settings.theme)}`
+          : `Global: ${capitalize(settings.theme)}`,
+        afterRun: "refresh",
+        run: () => setSiteTheme(null)
+      },
+      {
+        type: "action",
+        id: "theme-dark",
+        order: 11,
+        name: `/theme › Use dark for ${location.hostname}`,
+        detail: siteTheme === "dark" ? "Current" : "",
+        afterRun: "refresh",
+        run: () => setSiteTheme("dark")
+      },
+      {
+        type: "action",
+        id: "theme-light",
+        order: 12,
+        name: `/theme › Use light for ${location.hostname}`,
+        detail: siteTheme === "light" ? "Current" : "",
+        afterRun: "refresh",
+        run: () => setSiteTheme("light")
+      }
+    ];
+  }
+
+  async function setSiteTheme(theme) {
+    if (theme) {
+      settings.siteThemes[location.hostname] = theme;
+    } else {
+      delete settings.siteThemes[location.hostname];
+    }
+
+    await chrome.storage.local.set({ [SETTINGS_STORAGE_KEY]: settings });
+    applyTheme();
+  }
+
+  function applyTheme() {
+    if (!palette) return;
+    palette.host.dataset.theme = settings.siteThemes[location.hostname] ?? settings.theme;
+  }
+
+  function capitalize(value) {
+    return value.charAt(0).toLocaleUpperCase() + value.slice(1);
   }
 
   async function loadCommands() {
-    const result = await chrome.storage.local.get(STORAGE_KEY);
-    return result[STORAGE_KEY]?.[location.hostname] ?? [];
+    const result = await chrome.storage.local.get(COMMANDS_STORAGE_KEY);
+    return result[COMMANDS_STORAGE_KEY]?.[location.hostname] ?? [];
   }
 
   async function storeCommands(siteCommands) {
-    const result = await chrome.storage.local.get(STORAGE_KEY);
-    const commandsByHostname = result[STORAGE_KEY] ?? {};
+    const result = await chrome.storage.local.get(COMMANDS_STORAGE_KEY);
+    const commandsByHostname = result[COMMANDS_STORAGE_KEY] ?? {};
 
     commandsByHostname[location.hostname] = siteCommands;
-    await chrome.storage.local.set({ [STORAGE_KEY]: commandsByHostname });
+    await chrome.storage.local.set({ [COMMANDS_STORAGE_KEY]: commandsByHostname });
+  }
+
+  async function loadSettings() {
+    const result = await chrome.storage.local.get(SETTINGS_STORAGE_KEY);
+    const storedSettings = result[SETTINGS_STORAGE_KEY] ?? {};
+
+    return {
+      theme: storedSettings.theme === "dark" ? "dark" : "light",
+      siteThemes: storedSettings.siteThemes ?? {}
+    };
   }
 
   function normalizeUrl(value) {
