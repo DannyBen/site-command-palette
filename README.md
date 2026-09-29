@@ -48,6 +48,17 @@ the in-page palette requires a content script on those sites.
 
 The palette cannot run on protected Chrome pages such as `chrome://extensions`.
 
+## Package
+
+Create a clean, versioned Chrome Web Store upload ZIP with:
+
+```bash
+op package
+```
+
+The archive is written to the ignored `dist` directory with `manifest.json`
+at its root.
+
 ## Test
 
 Run the complete dependency-free suite with:
