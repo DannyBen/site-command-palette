@@ -1,13 +1,20 @@
 (() => {
   const { normalizeSettings, resolveTheme } = globalThis.SiteCommandPaletteCore;
-  const { SETTINGS_STORAGE_KEY, loadStorage } = globalThis.SiteCommandPaletteStorage;
+  const {
+    COMMANDS_STORAGE_KEY,
+    SETTINGS_STORAGE_KEY,
+    loadStorage
+  } = globalThis.SiteCommandPaletteStorage;
   const {
     clearBackupDirectory,
     getBackupState,
+    inspectBackupDirectory,
+    preserveSnapshot,
     queryBackupPermission,
     readBackup,
     requestBackupPermission,
     setBackupDirectory,
+    setHistoryLimit,
     writeBackup
   } = globalThis.SiteCommandPaletteBackup;
   const systemTheme = matchMedia("(prefers-color-scheme: dark)");
@@ -25,8 +32,12 @@
   const restoreBackup = document.getElementById("restore-backup");
   const disableBackup = document.getElementById("disable-backup");
   const backupMessage = document.getElementById("backup-message");
+  const backupHistoryLimit = document.getElementById("backup-history-limit");
+  const existingBackupDialog = document.getElementById("existing-backup-dialog");
+  const existingBackupDate = document.getElementById("existing-backup-date");
   let settings = normalizeSettings();
   let statusTimer = null;
+  let pendingDirectory = null;
 
   globalTheme.addEventListener("change", saveGlobalTheme);
   overrideList.addEventListener("change", updateSiteTheme);
@@ -37,6 +48,8 @@
   backupNow.addEventListener("click", runManualBackup);
   restoreBackup.addEventListener("click", restoreFromBackup);
   disableBackup.addEventListener("click", disableAutomaticBackup);
+  backupHistoryLimit.addEventListener("change", changeHistoryLimit);
+  existingBackupDialog.addEventListener("close", resolveExistingBackup);
 
   loadSettings();
   renderBackupState();
@@ -143,8 +156,32 @@
         id: "site-command-palette-backup",
         mode: "readwrite"
       });
-      await setBackupDirectory(directoryHandle);
-      await performBackup("Backup folder selected and initial backup created.");
+      const currentData = await loadStorage();
+      const inspection = await inspectBackupDirectory(
+        directoryHandle,
+        globalThis.SiteCommandPaletteCore.migrateStorage,
+        currentData
+      );
+
+      if (inspection.status === "invalid") {
+        throw new Error(`The existing backup is invalid and was not changed. ${inspection.message}`);
+      }
+      if (inspection.status === "missing") {
+        await setBackupDirectory(directoryHandle);
+        await performBackup("Backup folder selected and initial backup created.");
+        return;
+      }
+      if (inspection.matchesCurrent) {
+        await setBackupDirectory(directoryHandle, { lastBackupAt: inspection.exportedAt });
+        showBackupMessage("Backup folder connected. Your data is already up to date.");
+        await renderBackupState();
+        return;
+      }
+
+      pendingDirectory = { directoryHandle, inspection, currentData };
+      existingBackupDate.textContent = formatDate(inspection.exportedAt);
+      existingBackupDialog.returnValue = "cancel";
+      existingBackupDialog.showModal();
     } catch (error) {
       if (error?.name !== "AbortError") {
         showBackupMessage(error.message, true);
@@ -172,7 +209,7 @@
     const data = await loadStorage();
     const result = await writeBackup(data);
 
-    if (result.status !== "written") {
+    if (!["written", "unchanged"].includes(result.status)) {
       throw new Error(result.message ?? "The backup could not be written.");
     }
 
@@ -186,6 +223,12 @@
     clearBackupMessage();
     try {
       const data = await readBackup(globalThis.SiteCommandPaletteCore.migrateStorage);
+      const currentData = await loadStorage();
+      if (globalThis.SiteCommandPaletteBackup.storageDataEqual(data, currentData)) {
+        showBackupMessage("Current data already matches this backup.");
+        return;
+      }
+      if (hasUserData(currentData)) await preserveSnapshot(currentData);
       await chrome.storage.local.set(data);
       showBackupMessage("Backup restored.");
       await loadSettings();
@@ -196,10 +239,12 @@
   }
 
   async function disableAutomaticBackup() {
-    if (!confirm("Disable automatic backup and forget the selected folder?")) return;
+    if (!confirm("Disable backup and forget the selected folder? Existing backup files will be kept.")) {
+      return;
+    }
 
     await clearBackupDirectory();
-    showBackupMessage("Automatic backup disabled.");
+    showBackupMessage("Backup disabled.");
     await renderBackupState();
   }
 
@@ -216,6 +261,7 @@
     backupNow.disabled = !configured;
     restoreBackup.disabled = !configured;
     disableBackup.disabled = !configured;
+    backupHistoryLimit.value = String(state.historyLimit);
 
     if (!configured) {
       backupState.textContent = "Not configured";
@@ -231,6 +277,87 @@
       backupState.textContent = "Active";
       backupState.dataset.status = "active";
     }
+  }
+
+  async function changeHistoryLimit() {
+    const state = await getBackupState();
+    const previousLimit = state.historyLimit;
+    const nextLimit = Number(backupHistoryLimit.value);
+    const isLower = nextLimit !== -1 && (previousLimit === -1 || nextLimit < previousLimit);
+
+    if (isLower && !confirm(
+      `Keep only the latest ${nextLimit} historical ${nextLimit === 1 ? "version" : "versions"}? ` +
+      "Older history files will be permanently removed."
+    )) {
+      backupHistoryLimit.value = String(previousLimit);
+      return;
+    }
+
+    try {
+      const result = await setHistoryLimit(nextLimit);
+      if (result.status === "permission-required") {
+        showBackupMessage(
+          "Backup history setting saved. Reconnect the folder to remove older files.",
+          true
+        );
+        await renderBackupState();
+        return;
+      }
+      const removal = result.removed > 0
+        ? ` ${result.removed} older ${result.removed === 1 ? "version was" : "versions were"} removed.`
+        : "";
+      showBackupMessage(`Backup history setting saved.${removal}`);
+      await renderBackupState();
+    } catch (error) {
+      backupHistoryLimit.value = String(previousLimit);
+      showBackupMessage(error.message, true);
+    }
+  }
+
+  async function resolveExistingBackup() {
+    const selection = existingBackupDialog.returnValue;
+    const pending = pendingDirectory;
+    pendingDirectory = null;
+    if (!pending || !["restore", "replace"].includes(selection)) return;
+
+    clearBackupMessage();
+    try {
+      await setBackupDirectory(pending.directoryHandle, {
+        lastBackupAt: pending.inspection.exportedAt
+      });
+
+      if (selection === "restore") {
+        if (hasUserData(pending.currentData)) await preserveSnapshot(pending.currentData);
+        await chrome.storage.local.set(pending.inspection.data);
+        await loadSettings();
+        showBackupMessage("Existing backup restored and automatic backup enabled.");
+      } else if (selection === "replace") {
+        const result = await writeBackup(pending.currentData);
+        if (!["written", "unchanged"].includes(result.status)) {
+          throw new Error(result.message ?? "The backup could not be replaced.");
+        }
+        showBackupMessage("Existing backup replaced.");
+      }
+
+      await renderBackupState();
+    } catch (error) {
+      showBackupMessage(error.message, true);
+      await renderBackupState();
+    }
+  }
+
+  function hasUserData(data) {
+    const commandCount = Object.values(data[COMMANDS_STORAGE_KEY] ?? {})
+      .reduce((total, commands) => total + commands.length, 0);
+    const storedSettings = data[SETTINGS_STORAGE_KEY];
+
+    return commandCount > 0 || storedSettings.theme !== "light" ||
+      Object.keys(storedSettings.siteThemes).length > 0;
+  }
+
+  function formatDate(value) {
+    const date = new Date(value);
+    return Number.isNaN(date.valueOf()) ? "an unknown date" : date.toLocaleString();
   }
 
   function showBackupMessage(message, isError = false) {

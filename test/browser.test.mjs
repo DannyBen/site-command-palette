@@ -132,6 +132,32 @@ test("palette keyboard, theme, and settings flows work in Chromium", { timeout: 
         await evaluate(optionsCdp, "document.getElementById('backup-now').disabled"),
         true
       );
+      assert.equal(
+        await evaluate(optionsCdp, "document.getElementById('backup-history-limit').value"),
+        "10",
+        "backup history should default to ten previous versions"
+      );
+      assert.deepEqual(
+        await evaluate(optionsCdp, `JSON.stringify({
+          h1: getComputedStyle(document.querySelector('h1')).fontSize,
+          h2: getComputedStyle(document.getElementById('theme-heading')).fontSize,
+          h3: getComputedStyle(document.querySelector('.list-heading h3')).fontSize,
+          body: getComputedStyle(document.getElementById('backup-folder')).fontSize,
+          compact: getComputedStyle(document.getElementById('backup-now')).fontSize,
+          h1Weight: getComputedStyle(document.querySelector('h1')).fontWeight,
+          buttonWeight: getComputedStyle(document.getElementById('backup-now')).fontWeight
+        })`),
+        JSON.stringify({
+          h1: "32px",
+          h2: "24px",
+          h3: "20px",
+          body: "16px",
+          compact: "14px",
+          h1Weight: "400",
+          buttonWeight: "500"
+        }),
+        "settings should use the five-role Primer-inspired type scale"
+      );
       assert.deepEqual(
         await evaluate(optionsCdp, `JSON.stringify(
           [...document.querySelector('[data-hostname="127.0.0.1"]').options]

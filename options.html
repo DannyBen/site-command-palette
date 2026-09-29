@@ -63,11 +63,29 @@
             </div>
           </dl>
 
+          <div class="backup-preference">
+            <div>
+              <h3>Backup history</h3>
+              <p>Keep previous versions in case you need to undo a change.</p>
+            </div>
+            <label>
+              <span>Versions to keep</span>
+              <select id="backup-history-limit">
+                <option value="0">Latest only</option>
+                <option value="5">5 versions</option>
+                <option value="10">10 versions</option>
+                <option value="25">25 versions</option>
+                <option value="50">50 versions</option>
+                <option value="-1">Unlimited</option>
+              </select>
+            </label>
+          </div>
+
           <div class="button-row">
             <button id="choose-backup-folder" type="button" class="primary-button">Choose backup folder</button>
             <button id="backup-now" type="button">Back up now</button>
             <button id="restore-backup" type="button">Restore backup</button>
-            <button id="disable-backup" type="button" class="danger-button">Disable automatic backup</button>
+            <button id="disable-backup" type="button" class="danger-button">Disable backup</button>
           </div>
 
           <p class="secondary-text">
@@ -80,6 +98,22 @@
 
       <p id="save-status" class="save-status" role="status" aria-live="polite"></p>
     </main>
+
+    <dialog id="existing-backup-dialog" class="decision-dialog" aria-labelledby="existing-backup-heading">
+      <form method="dialog">
+        <h2 id="existing-backup-heading">Existing backup found</h2>
+        <p>
+          This folder contains a backup from <strong id="existing-backup-date"></strong>.
+          It has not been changed.
+        </p>
+        <p>Would you like to restore it or replace it with the data on this computer?</p>
+        <div class="button-row">
+          <button value="cancel">Cancel</button>
+          <button value="replace" class="danger-button">Replace backup</button>
+          <button value="restore" class="primary-button">Restore existing backup</button>
+        </div>
+      </form>
+    </dialog>
 
     <script src="core.js"></script>
     <script src="storage.js"></script>
