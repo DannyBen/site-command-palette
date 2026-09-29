@@ -1,6 +1,6 @@
 (() => {
   const {
-    compactUrl,
+    commandHint,
     formatKeyBinding,
     fuzzyMatch,
     keyBindingHasModifier,
@@ -480,7 +480,9 @@
       label.className = "command-name";
       appendHighlightedText(label, item.name, item.match.indices);
       address.className = "command-detail";
-      address.textContent = item.type === "link" ? compactUrl(item.url) : item.detail;
+      address.textContent = item.type === "link"
+        ? commandHint(item.url, item.scope, location)
+        : item.detail;
       address.title = item.type === "link" ? item.url : item.detail;
       openButton.append(label, address);
 

@@ -301,7 +301,7 @@ async function waitForDebuggingPort(profile, browser, errors) {
     } catch {
       return false;
     }
-  });
+  }, 15_000);
 }
 
 async function waitForPageTarget(port) {

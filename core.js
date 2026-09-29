@@ -109,10 +109,24 @@
     return { score: score - haystack.length * 0.01, indices };
   }
 
-  function compactUrl(value) {
-    const url = new URL(value);
-    const path = `${url.pathname}${url.search}${url.hash}` || "/";
-    return middleEllipsis(path, 42);
+  function commandHint(urlValue, scopeValue, locationValue) {
+    const destination = new URL(urlValue);
+    const location = new URL(locationValue.href ?? locationValue);
+    const scope = normalizeScope(scopeValue);
+    const scopeHostname = scope?.split("/", 1)[0];
+    const hostname = destination.hostname.replace(/^www\./, "");
+
+    if (
+      scope === "*" ||
+      scopeHostname?.includes("*") ||
+      destination.hostname !== location.hostname
+    ) {
+      return hostname;
+    }
+
+    return destination.pathname === "/"
+      ? hostname
+      : middleEllipsis(destination.pathname, 42);
   }
 
   function middleEllipsis(value, maximumLength) {
@@ -297,7 +311,7 @@
     SETTINGS_STORAGE_KEY,
     STORAGE_SCHEMA_VERSION,
     STORAGE_SCHEMA_VERSION_KEY,
-    compactUrl,
+    commandHint,
     formatBackupDate,
     formatKeyBinding,
     fuzzyMatch,

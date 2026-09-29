@@ -6,7 +6,7 @@ const {
   DEFAULT_KEY_BINDINGS,
   SETTINGS_STORAGE_KEY,
   STORAGE_SCHEMA_VERSION_KEY,
-  compactUrl,
+  commandHint,
   formatBackupDate,
   formatKeyBinding,
   fuzzyMatch,
@@ -79,16 +79,39 @@ test("middleEllipsis preserves both ends at the requested length", () => {
   assert.match(compact, /^abcdef…vwxyz$/);
 });
 
-test("compactUrl removes the origin and retains route information", () => {
-  assert.equal(
-    compactUrl("https://example.com/path/to/page?mode=edit#section"),
-    "/path/to/page?mode=edit#section"
-  );
+test("commandHint uses hostnames for global and wildcard commands", () => {
+  const location = "https://example.com/current";
 
-  const compact = compactUrl(`https://example.com/${"segment/".repeat(10)}`);
-  assert.equal(compact.length, 42);
-  assert.ok(compact.includes("…"));
-  assert.ok(!compact.includes("example.com"));
+  assert.equal(commandHint("https://github.com/", "*", location), "github.com");
+  assert.equal(
+    commandHint("https://www.github.com/openai", "*.github.com", location),
+    "github.com"
+  );
+});
+
+test("commandHint uses paths for same-site commands and a hostname for the root", () => {
+  const location = "https://github.com/openai/project";
+
+  assert.equal(
+    commandHint("https://github.com/issues?state=open#mine", "github.com", location),
+    "/issues"
+  );
+  assert.equal(commandHint("https://github.com/", "github.com", location), "github.com");
+  assert.equal(
+    commandHint("https://github.com/openai/project", "github.com/openai/*", location),
+    "/openai/project"
+  );
+});
+
+test("commandHint uses the destination hostname for cross-site commands", () => {
+  assert.equal(
+    commandHint(
+      "https://docs.github.com/en/get-started",
+      "github.com",
+      "https://github.com/openai"
+    ),
+    "docs.github.com"
+  );
 });
 
 test("formatBackupDate uses an unambiguous long date and 24-hour time", () => {
