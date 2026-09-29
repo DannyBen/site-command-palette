@@ -4,16 +4,19 @@
   --raised-background-color: #fafafa;
   --text-color: #18181b;
   --muted-text-color: #71717a;
-  --accent-color: #6d28d9;
-  --accent-background-color: #ede9fe;
+  --accent-color: #1f883d;
+  --accent-hover-color: #1a7f37;
+  --accent-background-color: #dcfce7;
+  --accent-text-color: #ffffff;
   --border-color: #d4d4d8;
-  --focus-ring-color: rgb(109 40 217 / 18%);
-  --primary-background-color: #1f883d;
-  --primary-hover-background-color: #1a7f37;
-  --primary-focus-ring-color: rgb(31 136 61 / 22%);
-  --primary-text-color: #ffffff;
+  --focus-ring-color: rgb(31 136 61 / 22%);
+  --success-color: #166534;
+  --success-background-color: var(--accent-background-color);
+  --warning-color: #92400e;
+  --warning-background-color: #fef3c7;
   --danger-color: #b91c1c;
-  --danger-background-color: #fef2f2;
+  --danger-background-color: #fee2e2;
+  --dialog-backdrop-color: rgb(24 24 27 / 45%);
   --text-heading-1: 2rem;
   --text-heading-2: 1.5rem;
   --text-heading-3: 1.25rem;
@@ -29,6 +32,7 @@
   --panel-shadow: 0 16px 50px rgb(24 24 27 / 8%);
 
   color-scheme: light;
+  accent-color: var(--accent-color);
   color: var(--text-color);
   background: var(--page-background-color);
   font: var(--text-body)/1.5 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -40,16 +44,19 @@
   --raised-background-color: #27272a;
   --text-color: #fafafa;
   --muted-text-color: #a1a1aa;
-  --accent-color: #a78bfa;
-  --accent-background-color: #3b2e58;
+  --accent-color: #2ea043;
+  --accent-hover-color: #3fb950;
+  --accent-background-color: #143322;
+  --accent-text-color: #ffffff;
   --border-color: #3f3f46;
-  --focus-ring-color: rgb(167 139 250 / 24%);
-  --primary-background-color: #238636;
-  --primary-hover-background-color: #2ea043;
-  --primary-focus-ring-color: rgb(46 160 67 / 28%);
-  --primary-text-color: #ffffff;
+  --focus-ring-color: rgb(46 160 67 / 28%);
+  --success-color: #86efac;
+  --success-background-color: var(--accent-background-color);
+  --warning-color: #fde68a;
+  --warning-background-color: #422f12;
   --danger-color: #fca5a5;
   --danger-background-color: #3a1d1d;
+  --dialog-backdrop-color: rgb(0 0 0 / 58%);
   --panel-shadow: 0 16px 50px rgb(0 0 0 / 28%);
 
   color-scheme: dark;
@@ -57,6 +64,11 @@
 
 * {
   box-sizing: border-box;
+}
+
+::selection {
+  background: var(--accent-background-color);
+  color: var(--text-color);
 }
 
 body {
@@ -262,9 +274,9 @@ select {
   font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
 
   &[data-capturing] {
-    border-color: var(--primary-background-color);
-    box-shadow: 0 0 0 3px var(--primary-focus-ring-color);
-    color: var(--primary-background-color);
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 3px var(--focus-ring-color);
+    color: var(--accent-color);
   }
 }
 
@@ -346,35 +358,18 @@ select {
   font-weight: var(--weight-medium);
 
   &[data-status="active"] {
-    background: #dcfce7;
-    color: #166534;
+    background: var(--success-background-color);
+    color: var(--success-color);
   }
 
   &[data-status="warning"] {
-    background: #fef3c7;
-    color: #92400e;
+    background: var(--warning-background-color);
+    color: var(--warning-color);
   }
 
   &[data-status="error"] {
-    background: #fee2e2;
-    color: #991b1b;
-  }
-}
-
-:root[data-theme="dark"] .state-badge {
-  &[data-status="active"] {
-    background: #143322;
-    color: #86efac;
-  }
-
-  &[data-status="warning"] {
-    background: #422f12;
-    color: #fde68a;
-  }
-
-  &[data-status="error"] {
-    background: #431b1b;
-    color: #fca5a5;
+    background: var(--danger-background-color);
+    color: var(--danger-color);
   }
 }
 
@@ -471,16 +466,16 @@ select {
     }
 
     &.primary-button {
-      border-color: var(--primary-background-color);
-      background: var(--primary-background-color);
-      color: var(--primary-text-color);
+      border-color: var(--accent-color);
+      background: var(--accent-color);
+      color: var(--accent-text-color);
       font-weight: var(--weight-medium);
 
       &:hover:not(:disabled),
       &:focus-visible {
-        border-color: var(--primary-hover-background-color);
-        background: var(--primary-hover-background-color);
-        box-shadow: 0 0 0 3px var(--primary-focus-ring-color);
+        border-color: var(--accent-hover-color);
+        background: var(--accent-hover-color);
+        box-shadow: 0 0 0 3px var(--focus-ring-color);
       }
     }
 
@@ -513,13 +508,7 @@ select {
   }
 
   &[data-status="success"] {
-    color: #15803d;
-  }
-}
-
-:root[data-theme="dark"] {
-  .backup-message[data-status="success"] {
-    color: #86efac;
+    color: var(--success-color);
   }
 }
 
@@ -533,7 +522,7 @@ select {
   box-shadow: var(--panel-shadow);
 
   &::backdrop {
-    background: rgb(24 24 27 / 45%);
+    background: var(--dialog-backdrop-color);
   }
 
   form {
