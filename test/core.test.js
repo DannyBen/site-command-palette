@@ -6,6 +6,7 @@ const {
   SETTINGS_STORAGE_KEY,
   STORAGE_SCHEMA_VERSION_KEY,
   compactUrl,
+  formatBackupDate,
   fuzzyMatch,
   migrateStorage,
   middleEllipsis,
@@ -47,6 +48,13 @@ test("compactUrl removes the origin and retains route information", () => {
   assert.equal(compact.length, 42);
   assert.ok(compact.includes("…"));
   assert.ok(!compact.includes("example.com"));
+});
+
+test("formatBackupDate uses an unambiguous long date and 24-hour time", () => {
+  const formatted = formatBackupDate("2026-09-09T12:34:00Z");
+
+  assert.match(formatted, /^September 9, 2026 at \d{2}:\d{2}$/);
+  assert.equal(formatBackupDate("not a date"), "Unknown date");
 });
 
 test("normalizeSettings supplies defaults and discards invalid themes", () => {

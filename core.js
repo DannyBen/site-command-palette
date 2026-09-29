@@ -54,6 +54,23 @@
     return `${value.slice(0, startLength)}…${value.slice(-endLength)}`;
   }
 
+  function formatBackupDate(value) {
+    const date = new Date(value);
+    if (Number.isNaN(date.valueOf())) return "Unknown date";
+
+    const formattedDate = new Intl.DateTimeFormat("en-US", {
+      year: "numeric",
+      month: "long",
+      day: "numeric"
+    }).format(date);
+    const formattedTime = new Intl.DateTimeFormat("en-GB", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23"
+    }).format(date);
+    return `${formattedDate} at ${formattedTime}`;
+  }
+
   function normalizeSettings(value) {
     const storedSettings = value && typeof value === "object" ? value : {};
     const storedSiteThemes = storedSettings.siteThemes;
@@ -135,6 +152,7 @@
     STORAGE_SCHEMA_VERSION,
     STORAGE_SCHEMA_VERSION_KEY,
     compactUrl,
+    formatBackupDate,
     fuzzyMatch,
     migrateStorage,
     middleEllipsis,

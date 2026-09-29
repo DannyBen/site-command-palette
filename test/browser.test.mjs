@@ -125,6 +125,11 @@ test("palette keyboard, theme, and settings flows work in Chromium", { timeout: 
         "extension settings should have access to the directory picker"
       );
       assert.equal(
+        await evaluate(optionsCdp, "typeof window.showOpenFilePicker"),
+        "function",
+        "extension settings should have access to the backup file picker"
+      );
+      assert.equal(
         await evaluate(optionsCdp, "document.getElementById('backup-state').textContent"),
         "Not configured"
       );

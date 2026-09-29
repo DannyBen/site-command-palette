@@ -1,5 +1,9 @@
 (() => {
-  const { normalizeSettings, resolveTheme } = globalThis.SiteCommandPaletteCore;
+  const {
+    formatBackupDate,
+    normalizeSettings,
+    resolveTheme
+  } = globalThis.SiteCommandPaletteCore;
   const {
     COMMANDS_STORAGE_KEY,
     SETTINGS_STORAGE_KEY,
@@ -11,7 +15,7 @@
     inspectBackupDirectory,
     preserveSnapshot,
     queryBackupPermission,
-    readBackup,
+    readBackupFile,
     requestBackupPermission,
     setBackupDirectory,
     setHistoryLimit,
@@ -38,6 +42,7 @@
   let settings = normalizeSettings();
   let statusTimer = null;
   let pendingDirectory = null;
+  let currentBackupState = null;
 
   globalTheme.addEventListener("change", saveGlobalTheme);
   overrideList.addEventListener("change", updateSiteTheme);
@@ -179,7 +184,7 @@
       }
 
       pendingDirectory = { directoryHandle, inspection, currentData };
-      existingBackupDate.textContent = formatDate(inspection.exportedAt);
+      existingBackupDate.textContent = formatBackupDate(inspection.exportedAt);
       existingBackupDialog.returnValue = "cancel";
       existingBackupDialog.showModal();
     } catch (error) {
@@ -218,23 +223,35 @@
   }
 
   async function restoreFromBackup() {
-    if (!confirm("Replace all current commands and settings with the selected backup?")) return;
-
     clearBackupMessage();
     try {
-      const data = await readBackup(globalThis.SiteCommandPaletteCore.migrateStorage);
+      if (!currentBackupState?.directoryHandle) return;
+      const [fileHandle] = await window.showOpenFilePicker({
+        id: "site-command-palette-restore",
+        startIn: currentBackupState.directoryHandle,
+        multiple: false,
+        types: [{
+          description: "Site Command Palette backup",
+          accept: { "application/json": [".json"] }
+        }]
+      });
+      const data = await readBackupFile(
+        fileHandle,
+        globalThis.SiteCommandPaletteCore.migrateStorage
+      );
       const currentData = await loadStorage();
       if (globalThis.SiteCommandPaletteBackup.storageDataEqual(data, currentData)) {
         showBackupMessage("Current data already matches this backup.");
         return;
       }
+      if (!confirm("Replace all current commands and settings with the selected backup?")) return;
       if (hasUserData(currentData)) await preserveSnapshot(currentData);
       await chrome.storage.local.set(data);
       showBackupMessage("Backup restored.");
       await loadSettings();
       await renderBackupState();
     } catch (error) {
-      showBackupMessage(error.message, true);
+      if (error?.name !== "AbortError") showBackupMessage(error.message, true);
     }
   }
 
@@ -250,12 +267,13 @@
 
   async function renderBackupState() {
     const state = await getBackupState();
+    currentBackupState = state;
     const configured = Boolean(state.directoryHandle);
     const permission = await queryBackupPermission(state.directoryHandle);
 
     backupFolder.textContent = state.directoryName ?? "No folder selected";
     lastBackup.textContent = state.lastBackupAt
-      ? new Date(state.lastBackupAt).toLocaleString()
+      ? formatBackupDate(state.lastBackupAt)
       : "Never";
     chooseBackupFolder.textContent = configured ? "Change backup folder" : "Choose backup folder";
     backupNow.disabled = !configured;
@@ -280,7 +298,7 @@
   }
 
   async function changeHistoryLimit() {
-    const state = await getBackupState();
+    const state = currentBackupState ?? await getBackupState();
     const previousLimit = state.historyLimit;
     const nextLimit = Number(backupHistoryLimit.value);
     const isLower = nextLimit !== -1 && (previousLimit === -1 || nextLimit < previousLimit);
@@ -294,13 +312,17 @@
     }
 
     try {
+      if (isLower && state.directoryHandle &&
+          !(await requestBackupPermission(state.directoryHandle))) {
+        backupHistoryLimit.value = String(previousLimit);
+        showBackupMessage("Folder access was not granted. Backup history was not changed.", true);
+        return;
+      }
+
       const result = await setHistoryLimit(nextLimit);
       if (result.status === "permission-required") {
-        showBackupMessage(
-          "Backup history setting saved. Reconnect the folder to remove older files.",
-          true
-        );
-        await renderBackupState();
+        backupHistoryLimit.value = String(previousLimit);
+        showBackupMessage("Folder access is unavailable. Backup history was not changed.", true);
         return;
       }
       const removal = result.removed > 0
@@ -353,11 +375,6 @@
 
     return commandCount > 0 || storedSettings.theme !== "light" ||
       Object.keys(storedSettings.siteThemes).length > 0;
-  }
-
-  function formatDate(value) {
-    const date = new Date(value);
-    return Number.isNaN(date.valueOf()) ? "an unknown date" : date.toLocaleString();
   }
 
   function showBackupMessage(message, isError = false) {

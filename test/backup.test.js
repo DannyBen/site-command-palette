@@ -6,10 +6,11 @@ const {
   BACKUP_FILE_NAME,
   createBackupDocument,
   inspectBackupDirectory,
-  parseBackupDocument
+  parseBackupDocument,
+  readBackupFile
 } = require("../backup.js");
 
-test("backup documents round-trip normalized extension data", () => {
+test("backup documents round-trip normalized extension data", async () => {
   const data = migrateStorage({
     commandsByHostname: {
       "example.com": [
@@ -25,6 +26,12 @@ test("backup documents round-trip normalized extension data", () => {
   assert.equal(document.version, 1);
   assert.equal(document.exportedAt, "2026-09-29T12:00:00.000Z");
   assert.deepEqual(parseBackupDocument(JSON.stringify(document), migrateStorage), data);
+  assert.deepEqual(
+    await readBackupFile({
+      getFile: async () => ({ text: async () => JSON.stringify(document) })
+    }, migrateStorage),
+    data
+  );
 });
 
 test("backup parsing rejects unrelated and unsupported files", () => {

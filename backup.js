@@ -78,12 +78,17 @@
   async function setHistoryLimit(historyLimit) {
     const normalizedLimit = normalizeHistoryLimit(historyLimit);
     const state = await getBackupState();
-    await writeState({ ...state, historyLimit: normalizedLimit });
+    const isLower = normalizedLimit !== -1 && (
+      state.historyLimit === -1 || normalizedLimit < state.historyLimit
+    );
 
-    if (!state.directoryHandle) return { status: "saved", removed: 0 };
-    if (await queryBackupPermission(state.directoryHandle) !== "granted") {
+    if (state.directoryHandle && isLower &&
+        await queryBackupPermission(state.directoryHandle) !== "granted") {
       return { status: "permission-required", removed: 0 };
     }
+
+    await writeState({ ...state, historyLimit: normalizedLimit });
+    if (!state.directoryHandle || !isLower) return { status: "saved", removed: 0 };
 
     const removed = await pruneHistory(state.directoryHandle, normalizedLimit);
     return { status: "saved", removed };
@@ -215,6 +220,11 @@
     return inspection.data;
   }
 
+  async function readBackupFile(fileHandle, migrateStorage) {
+    const file = await fileHandle.getFile();
+    return parseBackupDocument(await file.text(), migrateStorage);
+  }
+
   async function archiveDocument(directoryHandle, document, historyLimit) {
     if (historyLimit === 0) return;
 
@@ -325,6 +335,7 @@
     preserveSnapshot,
     queryBackupPermission,
     readBackup,
+    readBackupFile,
     requestBackupPermission,
     setBackupDirectory,
     setHistoryLimit,
