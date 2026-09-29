@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Site Command Palette Settings</title>
+    <link rel="stylesheet" href="options.css">
+  </head>
+  <body>
+    <main>
+      <header class="page-heading">
+        <p>Site Command Palette</p>
+        <h1>Settings</h1>
+      </header>
+
+      <section class="panel" aria-labelledby="theme-heading">
+        <div class="section-heading">
+          <div>
+            <h2 id="theme-heading">Theme</h2>
+            <p>Choose the default appearance used on sites without an override.</p>
+          </div>
+          <label class="global-theme">
+            <span>Global theme</span>
+            <select id="global-theme">
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
+              <option value="system">System</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="site-themes">
+          <div class="list-heading">
+            <div>
+              <h3>Site overrides</h3>
+              <p>These sites ignore the global theme.</p>
+            </div>
+            <span id="override-count" aria-live="polite"></span>
+          </div>
+          <div id="override-list" class="override-list"></div>
+          <p id="empty-overrides" class="empty">No site theme overrides.</p>
+        </div>
+      </section>
+
+      <p id="save-status" class="save-status" role="status" aria-live="polite"></p>
+    </main>
+
+    <script src="core.js"></script>
+    <script src="options.js"></script>
+  </body>
+</html>

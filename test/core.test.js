@@ -6,7 +6,8 @@ const {
   fuzzyMatch,
   middleEllipsis,
   normalizeSettings,
-  normalizeUrl
+  normalizeUrl,
+  resolveTheme
 } = require("../core.js");
 
 test("normalizeUrl accepts HTTP URLs and rejects unsafe protocols", () => {
@@ -45,7 +46,7 @@ test("compactUrl removes the origin and retains route information", () => {
 });
 
 test("normalizeSettings supplies defaults and discards invalid themes", () => {
-  assert.deepEqual(normalizeSettings(), { theme: "light", siteThemes: {} });
+  assert.deepEqual(normalizeSettings(), { version: 1, theme: "light", siteThemes: {} });
   assert.deepEqual(
     normalizeSettings({
       theme: "dark",
@@ -56,6 +57,7 @@ test("normalizeSettings supplies defaults and discards invalid themes", () => {
       }
     }),
     {
+      version: 1,
       theme: "dark",
       siteThemes: {
         "dark.example": "dark",
@@ -63,4 +65,17 @@ test("normalizeSettings supplies defaults and discards invalid themes", () => {
       }
     }
   );
+
+  assert.equal(normalizeSettings({ theme: "system" }).theme, "system");
+});
+
+test("resolveTheme gives site overrides precedence and resolves System", () => {
+  const settings = normalizeSettings({
+    theme: "system",
+    siteThemes: { "light.example": "light" }
+  });
+
+  assert.equal(resolveTheme(settings, "dark.example", true), "dark");
+  assert.equal(resolveTheme(settings, "dark.example", false), "light");
+  assert.equal(resolveTheme(settings, "light.example", true), "light");
 });

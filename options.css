@@ -1,0 +1,235 @@
+:root {
+  --page-background-color: #f4f4f5;
+  --panel-background-color: #ffffff;
+  --raised-background-color: #fafafa;
+  --text-color: #18181b;
+  --muted-text-color: #71717a;
+  --accent-color: #6d28d9;
+  --accent-background-color: #ede9fe;
+  --border-color: #d4d4d8;
+  --focus-ring-color: rgb(109 40 217 / 18%);
+  --text-body: 16px;
+  --text-secondary: 14px;
+  --normal-gap: 16px;
+  --large-gap: 28px;
+  --panel-radius: 12px;
+  --control-radius: 7px;
+  --panel-shadow: 0 16px 50px rgb(24 24 27 / 8%);
+
+  color-scheme: light;
+  color: var(--text-color);
+  background: var(--page-background-color);
+  font: var(--text-body)/1.5 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+:root[data-theme="dark"] {
+  --page-background-color: #111113;
+  --panel-background-color: #18181b;
+  --raised-background-color: #27272a;
+  --text-color: #fafafa;
+  --muted-text-color: #a1a1aa;
+  --accent-color: #a78bfa;
+  --accent-background-color: #3b2e58;
+  --border-color: #3f3f46;
+  --focus-ring-color: rgb(167 139 250 / 24%);
+  --panel-shadow: 0 16px 50px rgb(0 0 0 / 28%);
+
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-width: 640px;
+  margin: 0;
+  background: var(--page-background-color);
+}
+
+button,
+select {
+  color: inherit;
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+main {
+  width: min(820px, calc(100% - 48px));
+  margin: 56px auto;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin-top: 0;
+}
+
+.page-heading {
+  margin-bottom: var(--large-gap);
+
+  p {
+    margin-bottom: 3px;
+    color: var(--accent-color);
+    font-size: var(--text-secondary);
+    font-weight: 700;
+  }
+
+  h1 {
+    margin-bottom: 0;
+    font-size: 30px;
+    line-height: 1.2;
+  }
+}
+
+.panel {
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+  border-radius: var(--panel-radius);
+  background: var(--panel-background-color);
+  box-shadow: var(--panel-shadow);
+}
+
+.section-heading,
+.list-heading,
+.override {
+  display: grid;
+  align-items: center;
+}
+
+.section-heading {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--large-gap);
+  padding: 24px;
+
+  h2 {
+    margin-bottom: 4px;
+    font-size: 20px;
+  }
+
+  p {
+    margin-bottom: 0;
+    color: var(--muted-text-color);
+    font-size: var(--text-secondary);
+  }
+}
+
+.global-theme {
+  display: grid;
+  gap: 6px;
+  min-width: 180px;
+  color: var(--muted-text-color);
+  font-weight: 650;
+
+  span {
+    font-size: var(--text-secondary);
+  }
+}
+
+select {
+  padding: 8px 34px 8px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--control-radius);
+  outline: none;
+  background: var(--raised-background-color);
+  color: var(--text-color);
+  font-weight: 650;
+
+  &:focus-visible {
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 3px var(--focus-ring-color);
+  }
+}
+
+.site-themes {
+  padding-bottom: 24px;
+  border-top: 1px solid var(--border-color);
+}
+
+.list-heading {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--normal-gap);
+  padding: 20px 24px 12px;
+
+  h3 {
+    margin-bottom: 2px;
+    font-size: 16px;
+  }
+
+  p,
+  > span {
+    margin-bottom: 0;
+    color: var(--muted-text-color);
+    font-size: var(--text-secondary);
+  }
+}
+
+.override-list,
+.empty {
+  margin-right: 24px;
+  margin-left: 24px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--control-radius);
+  background: var(--raised-background-color);
+}
+
+.override-list {
+  overflow: hidden;
+}
+
+.override {
+  grid-template-columns: minmax(0, 1fr) 140px auto;
+  gap: var(--normal-gap);
+  min-height: 58px;
+  padding: 10px 14px;
+
+  & + & {
+    border-top: 1px solid var(--border-color);
+  }
+
+  strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  button {
+    padding: 7px 10px;
+    border: 0;
+    border-radius: var(--control-radius);
+    background: transparent;
+    color: var(--accent-color);
+    font-size: var(--text-secondary);
+    font-weight: 650;
+
+    &:hover,
+    &:focus-visible {
+      outline: none;
+      background: var(--accent-background-color);
+    }
+  }
+}
+
+.empty {
+  margin-bottom: 0;
+  padding: 24px;
+  color: var(--muted-text-color);
+  font-size: var(--text-secondary);
+  text-align: center;
+}
+
+.save-status {
+  min-height: 21px;
+  margin: 12px 4px 0;
+  color: var(--muted-text-color);
+  font-size: var(--text-secondary);
+  text-align: right;
+}
+
+[hidden] {
+  display: none !important;
+}

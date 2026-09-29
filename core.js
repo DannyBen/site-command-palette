@@ -61,9 +61,18 @@
     }
 
     return {
-      theme: storedSettings.theme === "dark" ? "dark" : "light",
+      version: 1,
+      theme: ["light", "dark", "system"].includes(storedSettings.theme)
+        ? storedSettings.theme
+        : "light",
       siteThemes
     };
+  }
+
+  function resolveTheme(settings, hostname, prefersDark = false) {
+    const selectedTheme = settings.siteThemes[hostname] ?? settings.theme;
+    if (selectedTheme === "system") return prefersDark ? "dark" : "light";
+    return selectedTheme;
   }
 
   const api = Object.freeze({
@@ -71,7 +80,8 @@
     fuzzyMatch,
     middleEllipsis,
     normalizeSettings,
-    normalizeUrl
+    normalizeUrl,
+    resolveTheme
   });
 
   globalThis.SiteCommandPaletteCore = api;

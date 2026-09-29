@@ -14,7 +14,11 @@ test("manifest is valid and references existing packaged files", async () => {
 
   const referencedFiles = [
     ...manifest.content_scripts.flatMap((entry) => [...(entry.js ?? []), ...(entry.css ?? [])]),
-    ...manifest.web_accessible_resources.flatMap((entry) => entry.resources)
+    ...manifest.web_accessible_resources.flatMap((entry) => entry.resources),
+    manifest.background.service_worker,
+    manifest.options_ui.page,
+    "options.css",
+    "options.js"
   ];
 
   await Promise.all(referencedFiles.map((file) => access(path.join(projectRoot, file))));

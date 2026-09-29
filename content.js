@@ -3,7 +3,8 @@
     compactUrl,
     fuzzyMatch,
     normalizeSettings,
-    normalizeUrl
+    normalizeUrl,
+    resolveTheme
   } = globalThis.SiteCommandPaletteCore;
   const COMMANDS_STORAGE_KEY = "commandsByHostname";
   const SETTINGS_STORAGE_KEY = "settings";
@@ -15,16 +16,19 @@
 
   let palette = null;
   let commands = [];
-  let settings = { theme: "light", siteThemes: {} };
+  let settings = normalizeSettings();
   let filteredItems = [];
   let selectedIndex = 0;
   let opening = false;
   let editingCommandId = null;
   const suppressedKeyups = new Set();
+  const systemTheme = matchMedia("(prefers-color-scheme: dark)");
 
   window.addEventListener("keydown", handlePageKeydown, true);
   window.addEventListener("keypress", suppressPageKeyEvent, true);
   window.addEventListener("keyup", suppressPageKeyEvent, true);
+  chrome.storage.onChanged.addListener(handleStorageChange);
+  systemTheme.addEventListener("change", applyTheme);
 
   function handlePageKeydown(event) {
     if (palette) {
@@ -462,6 +466,15 @@
       },
       {
         type: "action",
+        id: "open-settings",
+        order: 1,
+        name: "/settings › Open extension settings",
+        detail: "Global and per-site preferences",
+        afterRun: "close",
+        run: () => chrome.runtime.sendMessage({ type: "open-options" })
+      },
+      {
+        type: "action",
         id: "theme-global",
         order: 10,
         name: "/theme › Use global setting",
@@ -505,7 +518,21 @@
 
   function applyTheme() {
     if (!palette) return;
-    palette.host.dataset.theme = settings.siteThemes[location.hostname] ?? settings.theme;
+    palette.host.dataset.theme = resolveTheme(
+      settings,
+      location.hostname,
+      systemTheme.matches
+    );
+  }
+
+  function handleStorageChange(changes, areaName) {
+    if (areaName !== "local" || !changes[SETTINGS_STORAGE_KEY]) return;
+
+    settings = normalizeSettings(changes[SETTINGS_STORAGE_KEY].newValue);
+    applyTheme();
+    if (palette?.mode === "list" && palette.search.value.trim().startsWith("/")) {
+      filterAndRender();
+    }
   }
 
   function capitalize(value) {

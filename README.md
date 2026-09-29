@@ -38,8 +38,11 @@ the in-page palette requires a content script on those sites.
   the underlying page's shortcut handlers.
 - Typing `/` shows built-in actions in the same result list as saved links.
 - `/add` opens the add-current-page form.
-- `/theme` offers global, per-site Light, and per-site Dark choices. The global
-  theme is Light until a settings page is added.
+- `/settings` opens the extension's full Settings page in a new tab. The same
+  page is available from the extension's options entry in Chrome.
+- `/theme` offers global, per-site Light, and per-site Dark choices.
+- Settings provides a global Light, Dark, or System theme and management of
+  saved per-site theme overrides. A per-site choice always wins.
 - Theme actions apply and refresh the palette in place, retaining the `/theme`
   filter and selected action.
 

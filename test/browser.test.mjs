@@ -24,7 +24,7 @@ const fixture = `<!doctype html>
   </body>
 </html>`;
 
-test("keyboard isolation and theme actions work in Chromium", { timeout: 30_000 }, async () => {
+test("palette keyboard, theme, and settings flows work in Chromium", { timeout: 30_000 }, async () => {
   const server = http.createServer((request, response) => {
     if (request.url !== "/") {
       response.writeHead(404).end();
@@ -99,6 +99,74 @@ test("keyboard isolation and theme actions work in Chromium", { timeout: 30_000 
 
     await press(cdp, "`", "Backquote", 192);
     await waitFor(async () => (await paletteTheme(cdp)) === "dark");
+
+    await cdp.send("Input.insertText", { text: "/settings" });
+    await press(cdp, "Enter", "Enter", 13);
+    await waitFor(async () => !(await hasPalette(cdp)));
+
+    const optionsTarget = await waitForOptionsTarget(port);
+    const optionsCdp = await connectCdp(optionsTarget.webSocketDebuggerUrl);
+    try {
+      await waitFor(async () => evaluate(
+        optionsCdp,
+        "document.readyState === 'complete' && Boolean(document.getElementById('global-theme'))"
+      ));
+      await waitFor(async () => evaluate(
+        optionsCdp,
+        "document.querySelector('[data-hostname=\"127.0.0.1\"]')?.value === 'dark'"
+      ));
+      assert.equal(
+        await evaluate(optionsCdp, "document.getElementById('global-theme').value"),
+        "light"
+      );
+      assert.deepEqual(
+        await evaluate(optionsCdp, `JSON.stringify(
+          [...document.querySelector('[data-hostname="127.0.0.1"]').options]
+            .map((option) => option.value)
+        )`),
+        JSON.stringify(["light", "dark"])
+      );
+      assert.equal(
+        await evaluate(optionsCdp, `getComputedStyle(
+          document.getElementById('global-theme')
+        ).fontWeight === getComputedStyle(
+          document.querySelector('[data-hostname="127.0.0.1"]')
+        ).fontWeight`),
+        true,
+        "global and per-site theme values should use the same font weight"
+      );
+
+      await evaluate(optionsCdp, `(() => {
+        const button = document.querySelector('[data-remove-hostname="127.0.0.1"]');
+        button.click();
+      })()`);
+      await waitFor(async () => evaluate(
+        optionsCdp,
+        "document.getElementById('empty-overrides').hidden === false"
+      ));
+
+      await evaluate(optionsCdp, `(() => {
+        const select = document.getElementById('global-theme');
+        select.value = 'dark';
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+      })()`);
+      await waitFor(async () => evaluate(
+        optionsCdp,
+        "document.documentElement.dataset.theme === 'dark'"
+      ));
+
+      await press(cdp, "`", "Backquote", 192);
+      await waitFor(async () => (await paletteTheme(cdp)) === "dark");
+
+      await evaluate(optionsCdp, `(() => {
+        const select = document.getElementById('global-theme');
+        select.value = 'light';
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+      })()`);
+      await waitFor(async () => (await paletteTheme(cdp)) === "light");
+    } finally {
+      optionsCdp.close();
+    }
   } finally {
     cdp?.close();
     await stopProcess(browser);
@@ -155,6 +223,21 @@ async function waitForPageTarget(port) {
       const response = await fetch(`http://127.0.0.1:${port}/json/list`);
       const targets = await response.json();
       return targets.find((target) => target.type === "page" && target.url.startsWith("http://127.0.0.1:"));
+    } catch {
+      return false;
+    }
+  });
+}
+
+async function waitForOptionsTarget(port) {
+  return waitFor(async () => {
+    try {
+      const response = await fetch(`http://127.0.0.1:${port}/json/list`);
+      const targets = await response.json();
+      return targets.find((target) => (
+        target.type === "page" && target.url.startsWith("chrome-extension://") &&
+        target.url.endsWith("/options.html")
+      ));
     } catch {
       return false;
     }
