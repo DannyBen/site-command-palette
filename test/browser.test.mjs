@@ -79,6 +79,12 @@ test("palette keyboard, theme, and settings flows work in Chromium", { timeout: 
       await accessibleNodeDomProperty(cdp, "searchbox", "Search commands", "placeholder"),
       "Search Command palette browser test commands"
     );
+    await press(cdp, "Tab", "Tab", 9);
+    assert.equal(
+      await accessibleNodeFocused(cdp, "searchbox", "Search commands"),
+      true,
+      "Tab should keep focus on search while the command list is shown"
+    );
     const viewportHeight = await evaluate(cdp, "innerHeight");
     const edgeGap = Math.min(72, Math.max(16, viewportHeight * 0.12));
     assert.equal(
@@ -98,6 +104,18 @@ test("palette keyboard, theme, and settings flows work in Chromium", { timeout: 
     await openPalette(cdp);
 
     await press(cdp, "a", "KeyA", 65, 1);
+    assert.equal(
+      await accessibleNodeFocused(cdp, "textbox", "Page"),
+      true,
+      "the page field should start focused"
+    );
+    await press(cdp, "Tab", "Tab", 9);
+    assert.equal(
+      await accessibleNodeFocused(cdp, "textbox", "URL"),
+      true,
+      "Tab should retain normal form navigation"
+    );
+    await focusAccessibleNode(cdp, "textbox", "Page");
     await cdp.send("Input.insertText", { text: "Duplicate" });
     await activateAccessibleNode(cdp, "button", "Save command");
     await waitFor(async () => !(await hasAccessibleNode(cdp, "heading", "Add command")));
@@ -582,6 +600,18 @@ async function activateAccessibleNode(cdp, role, name) {
     objectId: object.objectId,
     functionDeclaration: "function() { this.click(); }"
   });
+}
+
+async function accessibleNodeFocused(cdp, role, name) {
+  const { nodes } = await cdp.send("Accessibility.getFullAXTree");
+  const node = nodes.find((candidate) => (
+    candidate.role?.value === role && candidate.name?.value === name
+  ));
+  assert.ok(node, `${role} named “${name}” should be accessible`);
+
+  return node.properties?.some((property) => (
+    property.name === "focused" && property.value?.value === true
+  )) ?? false;
 }
 
 async function focusAccessibleNode(cdp, role, name) {

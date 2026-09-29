@@ -128,6 +128,13 @@
 
     if (palette.mode !== "list") return;
 
+    if (event.key === "Tab") {
+      event.preventDefault();
+      event.stopPropagation();
+      palette.search.focus();
+      return;
+    }
+
     if (matchesKeyBinding(event, settings.keyBindings.add)) {
       event.preventDefault();
       showAddForm();
