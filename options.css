@@ -6,12 +6,14 @@
   --muted-text-color: #71717a;
   --accent-color: #1f883d;
   --accent-hover-color: #1a7f37;
-  --accent-background-color: #dcfce7;
   --accent-text-color: #ffffff;
+  --interaction-color: #3b82f6;
+  --text-selection-background-color: #93c5fd;
   --border-color: #d4d4d8;
-  --focus-ring-color: rgb(31 136 61 / 22%);
+  --focus-ring-color: rgb(37 99 235 / 28%);
+  --action-focus-ring-color: rgb(31 136 61 / 22%);
   --success-color: #166534;
-  --success-background-color: var(--accent-background-color);
+  --success-background-color: #dcfce7;
   --warning-color: #92400e;
   --warning-background-color: #fef3c7;
   --danger-color: #b91c1c;
@@ -46,12 +48,14 @@
   --muted-text-color: #a1a1aa;
   --accent-color: #2ea043;
   --accent-hover-color: #3fb950;
-  --accent-background-color: #143322;
   --accent-text-color: #ffffff;
+  --interaction-color: #60a5fa;
+  --text-selection-background-color: #244a73;
   --border-color: #3f3f46;
-  --focus-ring-color: rgb(46 160 67 / 28%);
+  --focus-ring-color: rgb(96 165 250 / 30%);
+  --action-focus-ring-color: rgb(46 160 67 / 28%);
   --success-color: #86efac;
-  --success-background-color: var(--accent-background-color);
+  --success-background-color: #143322;
   --warning-color: #fde68a;
   --warning-background-color: #422f12;
   --danger-color: #fca5a5;
@@ -67,7 +71,7 @@
 }
 
 ::selection {
-  background: var(--accent-background-color);
+  background: var(--text-selection-background-color);
   color: var(--text-color);
 }
 
@@ -92,7 +96,7 @@ select {
 
   &:hover,
   &:focus-visible {
-    border-color: var(--accent-color);
+    border-color: var(--interaction-color);
     outline: none;
     box-shadow: 0 0 0 3px var(--focus-ring-color);
   }
@@ -195,7 +199,7 @@ select {
   font-weight: var(--weight-medium);
 
   &:focus-visible {
-    border-color: var(--accent-color);
+    border-color: var(--interaction-color);
     box-shadow: 0 0 0 3px var(--focus-ring-color);
   }
 }
@@ -274,9 +278,9 @@ select {
   font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
 
   &[data-capturing] {
-    border-color: var(--accent-color);
+    border-color: var(--interaction-color);
     box-shadow: 0 0 0 3px var(--focus-ring-color);
-    color: var(--accent-color);
+    color: var(--interaction-color);
   }
 }
 
@@ -475,7 +479,7 @@ select {
       &:focus-visible {
         border-color: var(--accent-hover-color);
         background: var(--accent-hover-color);
-        box-shadow: 0 0 0 3px var(--focus-ring-color);
+        box-shadow: 0 0 0 3px var(--action-focus-ring-color);
       }
     }
 

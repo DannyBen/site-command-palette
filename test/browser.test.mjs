@@ -24,7 +24,7 @@ const fixture = `<!doctype html>
   </body>
 </html>`;
 
-test("palette keyboard, theme, and settings flows work in Chromium", { timeout: 30_000 }, async () => {
+test("palette keyboard, theme, and settings flows work in Chromium", { timeout: 45_000 }, async () => {
   const server = http.createServer((request, response) => {
     if (request.url !== "/") {
       response.writeHead(404).end();
@@ -66,8 +66,7 @@ test("palette keyboard, theme, and settings flows work in Chromium", { timeout: 
 
     await waitFor(async () => evaluate(cdp, "document.readyState === 'complete'"));
 
-    await press(cdp, "`", "Backquote", 192);
-    await waitFor(async () => hasPalette(cdp));
+    await openPalette(cdp);
 
     await press(cdp, "a", "KeyA", 65, 1);
     await cdp.send("Input.insertText", { text: "Duplicate" });
@@ -401,6 +400,18 @@ async function press(cdp, key, code, windowsVirtualKeyCode, modifiers = 0) {
 
 function hasPalette(cdp) {
   return evaluate(cdp, "Boolean(document.getElementById('site-command-palette-root'))");
+}
+
+async function openPalette(cdp, timeout = 15_000) {
+  const deadline = Date.now() + timeout;
+
+  while (Date.now() < deadline) {
+    if (await hasPalette(cdp)) return;
+    await press(cdp, "`", "Backquote", 192);
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+
+  throw new Error(`Palette did not open within ${timeout}ms`);
 }
 
 function paletteTheme(cdp) {

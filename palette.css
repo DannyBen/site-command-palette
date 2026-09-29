@@ -1,9 +1,9 @@
 :host {
   --background-color: #ffffff;
   --raised-background-color: #f4f4f5;
-  --hover-background-color: #f0fff4;
-  --accent-background-color: #dcfce7;
-  --selected-background-color: #aceebb;
+  --hover-background-color: #eaf3ff;
+  --list-selection-background-color: #b3d4fc;
+  --text-selection-background-color: #93c5fd;
   --selected-secondary-text-color: #52525b;
   --text-color: #18181b;
   --command-text-color: #27272a;
@@ -11,8 +11,10 @@
   --accent-color: #1f883d;
   --accent-hover-color: #1a7f37;
   --accent-text-color: #ffffff;
+  --interaction-color: #3b82f6;
   --match-color: #000000;
-  --focus-ring-color: rgb(31 136 61 / 22%);
+  --focus-ring-color: rgb(37 99 235 / 28%);
+  --action-focus-ring-color: rgb(31 136 61 / 22%);
   --danger-color: #b91c1c;
   --danger-background-color: #fee2e2;
   --border-color: #d4d4d8;
@@ -36,9 +38,9 @@
 :host([data-theme="dark"]) {
   --background-color: #18181b;
   --raised-background-color: #27272a;
-  --hover-background-color: #172e20;
-  --accent-background-color: #143322;
-  --selected-background-color: var(--accent-background-color);
+  --hover-background-color: #17243a;
+  --list-selection-background-color: #244a73;
+  --text-selection-background-color: #244a73;
   --selected-secondary-text-color: #d4d4d8;
   --text-color: #fafafa;
   --command-text-color: #e4e4e7;
@@ -46,8 +48,10 @@
   --accent-color: #2ea043;
   --accent-hover-color: #3fb950;
   --accent-text-color: #ffffff;
+  --interaction-color: #60a5fa;
   --match-color: #ffffff;
-  --focus-ring-color: rgb(46 160 67 / 28%);
+  --focus-ring-color: rgb(96 165 250 / 30%);
+  --action-focus-ring-color: rgb(46 160 67 / 28%);
   --danger-color: #fca5a5;
   --danger-background-color: #3a1d1d;
   --border-color: #3f3f46;
@@ -62,7 +66,7 @@
 }
 
 ::selection {
-  background: var(--selected-background-color);
+  background: var(--text-selection-background-color);
   color: var(--text-color);
 }
 
@@ -132,7 +136,7 @@ button {
   background: var(--raised-background-color);
 
   &:focus {
-    border-color: var(--accent-color);
+    border-color: var(--interaction-color);
     box-shadow: 0 0 0 3px var(--focus-ring-color);
   }
 }
@@ -154,7 +158,7 @@ button {
   }
 
   &[aria-selected="true"] {
-    background: var(--selected-background-color);
+    background: var(--list-selection-background-color);
     color: var(--text-color);
 
     .command-detail {
@@ -249,7 +253,7 @@ button {
 
   &:focus-visible {
     outline: none;
-    box-shadow: 0 0 0 3px var(--focus-ring-color);
+    box-shadow: 0 0 0 3px var(--action-focus-ring-color);
   }
 }
 
@@ -279,7 +283,7 @@ button {
     color: var(--text-color);
 
     &:focus {
-      border-color: var(--accent-color);
+      border-color: var(--interaction-color);
       box-shadow: 0 0 0 3px var(--focus-ring-color);
     }
   }
