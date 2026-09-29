@@ -9,6 +9,7 @@ zip -j -FS -X "$archive" \
   manifest.json \
   background.js \
   core.js \
+  storage.js \
   content.js \
   palette.css \
   options.html \

@@ -1,6 +1,6 @@
 (() => {
   const { normalizeSettings, resolveTheme } = globalThis.SiteCommandPaletteCore;
-  const SETTINGS_STORAGE_KEY = "settings";
+  const { SETTINGS_STORAGE_KEY, loadStorage } = globalThis.SiteCommandPaletteStorage;
   const systemTheme = matchMedia("(prefers-color-scheme: dark)");
 
   const globalTheme = document.getElementById("global-theme");
@@ -20,8 +20,8 @@
   loadSettings();
 
   async function loadSettings() {
-    const result = await chrome.storage.local.get(SETTINGS_STORAGE_KEY);
-    settings = normalizeSettings(result[SETTINGS_STORAGE_KEY]);
+    const stored = await loadStorage();
+    settings = stored[SETTINGS_STORAGE_KEY];
     render();
   }
 

@@ -2,8 +2,12 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const {
+  COMMANDS_STORAGE_KEY,
+  SETTINGS_STORAGE_KEY,
+  STORAGE_SCHEMA_VERSION_KEY,
   compactUrl,
   fuzzyMatch,
+  migrateStorage,
   middleEllipsis,
   normalizeSettings,
   normalizeUrl,
@@ -78,4 +82,49 @@ test("resolveTheme gives site overrides precedence and resolves System", () => {
   assert.equal(resolveTheme(settings, "dark.example", true), "dark");
   assert.equal(resolveTheme(settings, "dark.example", false), "light");
   assert.equal(resolveTheme(settings, "light.example", true), "light");
+});
+
+test("migrateStorage upgrades legacy data and normalizes saved commands", () => {
+  const migration = migrateStorage({
+    commandsByHostname: {
+      "example.com": [
+        { id: " command-1 ", name: " Documentation ", url: "https://example.com/docs" },
+        { id: "unsafe", name: "Unsafe", url: "javascript:alert(1)" },
+        { id: "missing-name", name: "", url: "https://example.com" }
+      ],
+      invalid: "not a command list"
+    },
+    settings: {
+      theme: "dark",
+      siteThemes: { "example.com": "light" }
+    }
+  });
+
+  assert.equal(migration.migrated, true);
+  assert.equal(migration.previousVersion, 0);
+  assert.equal(migration.data[STORAGE_SCHEMA_VERSION_KEY], 1);
+  assert.deepEqual(migration.data[COMMANDS_STORAGE_KEY], {
+    "example.com": [
+      { id: "command-1", name: "Documentation", url: "https://example.com/docs" }
+    ]
+  });
+  assert.deepEqual(migration.data[SETTINGS_STORAGE_KEY], {
+    version: 1,
+    theme: "dark",
+    siteThemes: { "example.com": "light" }
+  });
+});
+
+test("migrateStorage leaves the current schema current and rejects future data", () => {
+  const current = migrateStorage({
+    storageSchemaVersion: 1,
+    commandsByHostname: {},
+    settings: { theme: "light", siteThemes: {} }
+  });
+
+  assert.equal(current.migrated, false);
+  assert.throws(
+    () => migrateStorage({ storageSchemaVersion: 2 }),
+    /Unsupported storage schema version: 2/
+  );
 });

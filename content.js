@@ -6,8 +6,11 @@
     normalizeUrl,
     resolveTheme
   } = globalThis.SiteCommandPaletteCore;
-  const COMMANDS_STORAGE_KEY = "commandsByHostname";
-  const SETTINGS_STORAGE_KEY = "settings";
+  const {
+    COMMANDS_STORAGE_KEY,
+    SETTINGS_STORAGE_KEY,
+    loadStorage
+  } = globalThis.SiteCommandPaletteStorage;
   const HOST_ID = "site-command-palette-root";
   const stylesheet = fetch(chrome.runtime.getURL("palette.css")).then((response) => {
     if (!response.ok) throw new Error("Could not load palette styles");
@@ -241,7 +244,9 @@
     overlay.querySelector(".cancel-button").addEventListener("click", showCommandList);
     palette.addView.addEventListener("submit", saveCommand);
 
-    [commands, settings] = await Promise.all([loadCommands(), loadSettings()]);
+    const stored = await loadStorage();
+    commands = stored[COMMANDS_STORAGE_KEY][location.hostname] ?? [];
+    settings = stored[SETTINGS_STORAGE_KEY];
 
     if (!palette) return;
     applyTheme();
@@ -541,22 +546,12 @@
     return value.charAt(0).toLocaleUpperCase() + value.slice(1);
   }
 
-  async function loadCommands() {
-    const result = await chrome.storage.local.get(COMMANDS_STORAGE_KEY);
-    return result[COMMANDS_STORAGE_KEY]?.[location.hostname] ?? [];
-  }
-
   async function storeCommands(siteCommands) {
     const result = await chrome.storage.local.get(COMMANDS_STORAGE_KEY);
     const commandsByHostname = result[COMMANDS_STORAGE_KEY] ?? {};
 
     commandsByHostname[location.hostname] = siteCommands;
     await chrome.storage.local.set({ [COMMANDS_STORAGE_KEY]: commandsByHostname });
-  }
-
-  async function loadSettings() {
-    const result = await chrome.storage.local.get(SETTINGS_STORAGE_KEY);
-    return normalizeSettings(result[SETTINGS_STORAGE_KEY]);
   }
 
   function appendHighlightedText(element, value, indices) {

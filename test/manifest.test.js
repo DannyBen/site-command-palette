@@ -10,7 +10,7 @@ test("manifest is valid and references existing packaged files", async () => {
 
   assert.equal(manifest.manifest_version, 3);
   assert.ok(manifest.permissions.includes("storage"));
-  assert.deepEqual(manifest.content_scripts[0].js, ["core.js", "content.js"]);
+  assert.deepEqual(manifest.content_scripts[0].js, ["core.js", "storage.js", "content.js"]);
 
   const referencedFiles = [
     ...manifest.content_scripts.flatMap((entry) => [...(entry.js ?? []), ...(entry.css ?? [])]),
@@ -18,7 +18,8 @@ test("manifest is valid and references existing packaged files", async () => {
     manifest.background.service_worker,
     manifest.options_ui.page,
     "options.css",
-    "options.js"
+    "options.js",
+    "storage.js"
   ];
 
   await Promise.all(referencedFiles.map((file) => access(path.join(projectRoot, file))));

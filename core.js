@@ -1,4 +1,9 @@
 (() => {
+  const STORAGE_SCHEMA_VERSION = 1;
+  const STORAGE_SCHEMA_VERSION_KEY = "storageSchemaVersion";
+  const COMMANDS_STORAGE_KEY = "commandsByHostname";
+  const SETTINGS_STORAGE_KEY = "settings";
+
   function normalizeUrl(value) {
     try {
       const url = new URL(value);
@@ -69,6 +74,55 @@
     };
   }
 
+  function normalizeCommandsByHostname(value) {
+    const storedCommands = value && typeof value === "object" && !Array.isArray(value)
+      ? value
+      : {};
+    const commandsByHostname = {};
+
+    for (const [hostname, commands] of Object.entries(storedCommands)) {
+      if (!hostname || !Array.isArray(commands)) continue;
+
+      commandsByHostname[hostname] = commands
+        .map(normalizeCommand)
+        .filter(Boolean);
+    }
+
+    return commandsByHostname;
+  }
+
+  function normalizeCommand(value) {
+    if (!value || typeof value !== "object") return null;
+
+    const id = typeof value.id === "string" ? value.id.trim() : "";
+    const name = typeof value.name === "string" ? value.name.trim() : "";
+    const url = typeof value.url === "string" ? normalizeUrl(value.url) : null;
+    if (!id || !name || !url) return null;
+
+    return { id, name, url };
+  }
+
+  function migrateStorage(value) {
+    const stored = value && typeof value === "object" ? value : {};
+    const storedVersion = Number.isInteger(stored[STORAGE_SCHEMA_VERSION_KEY])
+      ? stored[STORAGE_SCHEMA_VERSION_KEY]
+      : 0;
+
+    if (storedVersion > STORAGE_SCHEMA_VERSION) {
+      throw new Error(`Unsupported storage schema version: ${storedVersion}`);
+    }
+
+    return {
+      migrated: storedVersion < STORAGE_SCHEMA_VERSION,
+      previousVersion: storedVersion,
+      data: {
+        [STORAGE_SCHEMA_VERSION_KEY]: STORAGE_SCHEMA_VERSION,
+        [COMMANDS_STORAGE_KEY]: normalizeCommandsByHostname(stored[COMMANDS_STORAGE_KEY]),
+        [SETTINGS_STORAGE_KEY]: normalizeSettings(stored[SETTINGS_STORAGE_KEY])
+      }
+    };
+  }
+
   function resolveTheme(settings, hostname, prefersDark = false) {
     const selectedTheme = settings.siteThemes[hostname] ?? settings.theme;
     if (selectedTheme === "system") return prefersDark ? "dark" : "light";
@@ -76,9 +130,15 @@
   }
 
   const api = Object.freeze({
+    COMMANDS_STORAGE_KEY,
+    SETTINGS_STORAGE_KEY,
+    STORAGE_SCHEMA_VERSION,
+    STORAGE_SCHEMA_VERSION_KEY,
     compactUrl,
     fuzzyMatch,
+    migrateStorage,
     middleEllipsis,
+    normalizeCommandsByHostname,
     normalizeSettings,
     normalizeUrl,
     resolveTheme
