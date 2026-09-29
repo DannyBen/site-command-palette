@@ -41,6 +41,10 @@
   window.addEventListener("keydown", handlePageKeydown, true);
   window.addEventListener("keypress", suppressPageKeyEvent, true);
   window.addEventListener("keyup", suppressPageKeyEvent, true);
+  window.addEventListener("hashchange", handlePageNavigation);
+  window.addEventListener("popstate", handlePageNavigation);
+  globalThis.navigation?.addEventListener("navigate", handlePageNavigation);
+  globalThis.navigation?.addEventListener("currententrychange", handlePageNavigation);
   chrome.storage.onChanged.addListener(handleStorageChange);
   systemTheme.addEventListener("change", applyTheme);
   loadStoredSettings();
@@ -272,6 +276,10 @@
     if (!palette) return;
     palette.host.remove();
     palette = null;
+  }
+
+  function handlePageNavigation() {
+    closePalette();
   }
 
   function handleOverlayClick(event) {

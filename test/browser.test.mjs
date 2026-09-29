@@ -75,6 +75,11 @@ test("palette keyboard, theme, and settings flows work in Chromium", { timeout: 
 
     await openPalette(cdp);
 
+    await evaluate(cdp, "location.hash = 'inbox'");
+    await waitFor(async () => !(await hasPalette(cdp)));
+    await evaluate(cdp, "history.replaceState(null, '', '/')");
+    await openPalette(cdp);
+
     await press(cdp, "a", "KeyA", 65, 1);
     await cdp.send("Input.insertText", { text: "Duplicate" });
     await activateAccessibleNode(cdp, "button", "Save command");

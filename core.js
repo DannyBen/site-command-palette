@@ -130,9 +130,8 @@
       return hostname;
     }
 
-    return destination.pathname === "/"
-      ? hostname
-      : middleEllipsis(destination.pathname, 42);
+    const route = `${destination.pathname === "/" ? "" : destination.pathname}${destination.hash}`;
+    return route ? middleEllipsis(route, 42) : hostname;
   }
 
   function isExternalUrl(urlValue, locationValue) {

@@ -159,14 +159,15 @@ test("commandHint uses hostnames for global and wildcard commands", () => {
   );
 });
 
-test("commandHint uses paths for same-site commands and a hostname for the root", () => {
+test("commandHint uses paths and fragments for same-site commands", () => {
   const location = "https://github.com/openai/project";
 
   assert.equal(
     commandHint("https://github.com/issues?state=open#mine", "github.com", location),
-    "/issues"
+    "/issues#mine"
   );
   assert.equal(commandHint("https://github.com/", "github.com", location), "github.com");
+  assert.equal(commandHint("https://github.com/#inbox", "github.com", location), "#inbox");
   assert.equal(
     commandHint("https://github.com/openai/project", "github.com/openai/*", location),
     "/openai/project"

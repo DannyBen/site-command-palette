@@ -35,6 +35,11 @@ Chrome will request access to websites because the extension must install its
 keyboard listener and display the palette within each page. The extension does
 not run on protected Chrome pages such as `chrome://extensions`.
 
+## Privacy
+
+Site Command Palette keeps commands and preferences locally. See the
+[Privacy Policy](PRIVACY.md) for details.
+
 ## License
 
 Site Command Palette is available under the [MIT License](LICENSE).
