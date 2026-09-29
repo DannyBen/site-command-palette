@@ -1,5 +1,5 @@
 (() => {
-  const STORAGE_SCHEMA_VERSION = 1;
+  const STORAGE_SCHEMA_VERSION = 2;
   const STORAGE_SCHEMA_VERSION_KEY = "storageSchemaVersion";
   const COMMANDS_STORAGE_KEY = "commandsByHostname";
   const SETTINGS_STORAGE_KEY = "settings";
@@ -48,6 +48,12 @@
     if (pathname === "/") pathname = "";
 
     return `${hostname}${pathname}`;
+  }
+
+  function commandNameKey(value) {
+    return typeof value === "string"
+      ? value.trim().replace(/\s+/g, " ").toLocaleLowerCase()
+      : "";
   }
 
   function scopeMatches(scopeValue, locationValue) {
@@ -253,6 +259,8 @@
       ? value
       : {};
     const commandsByScope = {};
+    const normalizedEntries = [];
+    const usedIds = new Set();
 
     for (const [storedScope, commands] of Object.entries(storedCommands)) {
       const scope = normalizeScope(storedScope);
@@ -261,7 +269,27 @@
       const normalizedCommands = commands
         .map(normalizeCommand)
         .filter(Boolean);
-      commandsByScope[scope] = [...(commandsByScope[scope] ?? []), ...normalizedCommands];
+      normalizedEntries.push([scope, normalizedCommands]);
+    }
+
+    const reservedIds = new Set(normalizedEntries.flatMap(([, commands]) => (
+      commands.map((command) => command.id)
+    )));
+
+    for (const [scope, commands] of normalizedEntries) {
+      const repairedCommands = commands.map((command) => {
+        let id = command.id;
+        let suffix = 2;
+        if (usedIds.has(id)) {
+          do {
+            id = `${command.id}-${suffix}`;
+            suffix += 1;
+          } while (usedIds.has(id) || reservedIds.has(id));
+        }
+        usedIds.add(id);
+        return { ...command, id };
+      });
+      commandsByScope[scope] = [...(commandsByScope[scope] ?? []), ...repairedCommands];
     }
 
     return commandsByScope;
@@ -276,6 +304,59 @@
     if (!id || !name || !url) return null;
 
     return { id, name, url };
+  }
+
+  function findCommandNameConflict(commandsByScope, scope, name, excludedId = null) {
+    const nameKey = commandNameKey(name);
+    if (!nameKey) return null;
+
+    return (commandsByScope[scope] ?? []).find((command) => (
+      command.id !== excludedId && commandNameKey(command.name) === nameKey
+    )) ?? null;
+  }
+
+  function resolveCommandsForLocation(commandsByScope, locationValue) {
+    const matchingCommands = Object.entries(commandsByScope)
+      .filter(([scope]) => scopeMatches(scope, locationValue))
+      .flatMap(([scope, commands]) => commands.map((command) => ({
+        ...command,
+        scope,
+        specificity: scopeSpecificity(scope)
+      })));
+    const bestSpecificityByName = new Map();
+
+    for (const command of matchingCommands) {
+      const nameKey = commandNameKey(command.name);
+      const best = bestSpecificityByName.get(nameKey);
+      if (!best || compareSpecificity(command.specificity, best) > 0) {
+        bestSpecificityByName.set(nameKey, command.specificity);
+      }
+    }
+
+    return matchingCommands
+      .filter((command) => (
+        compareSpecificity(command.specificity, bestSpecificityByName.get(
+          commandNameKey(command.name)
+        )) === 0
+      ))
+      .map(({ specificity, ...command }) => command);
+  }
+
+  function scopeSpecificity(scope) {
+    const slashIndex = scope.indexOf("/");
+    const hostname = slashIndex === -1 ? scope : scope.slice(0, slashIndex);
+    const hasPath = slashIndex !== -1;
+    const hostnameKind = hostname === "*" ? 0 : hostname.includes("*") ? 1 : 2;
+    const literalLength = scope.replace(/\*/g, "").length;
+    const wildcardCount = (scope.match(/\*/g) ?? []).length;
+    return [Number(hasPath), hostnameKind, literalLength, -wildcardCount];
+  }
+
+  function compareSpecificity(left, right) {
+    for (let index = 0; index < left.length; index += 1) {
+      if (left[index] !== right[index]) return left[index] - right[index];
+    }
+    return 0;
   }
 
   function migrateStorage(value) {
@@ -312,6 +393,8 @@
     STORAGE_SCHEMA_VERSION,
     STORAGE_SCHEMA_VERSION_KEY,
     commandHint,
+    commandNameKey,
+    findCommandNameConflict,
     formatBackupDate,
     formatKeyBinding,
     fuzzyMatch,
@@ -327,6 +410,7 @@
     normalizeScope,
     normalizeUrl,
     resolveTheme,
+    resolveCommandsForLocation,
     scopeMatches
   });
 

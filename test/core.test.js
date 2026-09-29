@@ -7,6 +7,8 @@ const {
   SETTINGS_STORAGE_KEY,
   STORAGE_SCHEMA_VERSION_KEY,
   commandHint,
+  commandNameKey,
+  findCommandNameConflict,
   formatBackupDate,
   formatKeyBinding,
   fuzzyMatch,
@@ -19,6 +21,7 @@ const {
   normalizeScope,
   normalizeSettings,
   normalizeUrl,
+  resolveCommandsForLocation,
   resolveTheme,
   scopeMatches
 } = require("../core.js");
@@ -61,6 +64,71 @@ test("normalizeCommandsByScope preserves exact, global, and wildcard collections
     "*.example.com": [{ id: "two", name: "Two", url: "https://docs.example.com/two" }],
     "*": [{ id: "three", name: "Three", url: "https://elsewhere.test/three" }]
   });
+});
+
+test("normalizeCommandsByScope repairs duplicate command IDs", () => {
+  assert.deepEqual(normalizeCommandsByScope({
+    "example.com": [
+      { id: "duplicate", name: "One", url: "https://example.com/one" },
+      { id: "duplicate", name: "Two", url: "https://example.com/two" },
+      { id: "duplicate-2", name: "Three", url: "https://example.com/three" }
+    ]
+  }), {
+    "example.com": [
+      { id: "duplicate", name: "One", url: "https://example.com/one" },
+      { id: "duplicate-3", name: "Two", url: "https://example.com/two" },
+      { id: "duplicate-2", name: "Three", url: "https://example.com/three" }
+    ]
+  });
+});
+
+test("command names compare without case or repeated whitespace", () => {
+  assert.equal(commandNameKey("  GitHub   Issues "), "github issues");
+  assert.equal(commandNameKey(null), "");
+});
+
+test("findCommandNameConflict checks one scope and can exclude an edited command", () => {
+  const commandsByScope = {
+    "example.com": [
+      { id: "one", name: "GitHub Issues", url: "https://github.com/issues" }
+    ],
+    "*": [
+      { id: "two", name: "GitHub Issues", url: "https://github.com/" }
+    ]
+  };
+
+  assert.equal(
+    findCommandNameConflict(commandsByScope, "example.com", "github   issues").id,
+    "one"
+  );
+  assert.equal(findCommandNameConflict(commandsByScope, "example.com", "GitHub Issues", "one"), null);
+  assert.equal(findCommandNameConflict(commandsByScope, "other.example", "GitHub Issues"), null);
+});
+
+test("resolveCommandsForLocation applies the most specific named override", () => {
+  const commands = resolveCommandsForLocation({
+    "*": [
+      { id: "global", name: "GitHub", url: "https://github.com/" },
+      { id: "alias", name: "Source hosting", url: "https://github.com/" }
+    ],
+    "github.com": [
+      { id: "site", name: "github", url: "https://github.com/openai" }
+    ],
+    "github.com/openai/*": [
+      { id: "path", name: "GitHub", url: "https://github.com/openai/issues" }
+    ]
+  }, "https://github.com/openai/project");
+
+  assert.deepEqual(commands.map(({ id }) => id), ["alias", "path"]);
+});
+
+test("resolveCommandsForLocation preserves ambiguous equal-specificity commands", () => {
+  const commands = resolveCommandsForLocation({
+    "*hub.com": [{ id: "one", name: "GitHub", url: "https://github.com/one" }],
+    "github.*": [{ id: "two", name: "github", url: "https://github.com/two" }]
+  }, "https://github.com/");
+
+  assert.deepEqual(commands.map(({ id }) => id), ["one", "two"]);
 });
 
 test("fuzzyMatch returns matched character indices", () => {
@@ -206,7 +274,7 @@ test("migrateStorage upgrades legacy data and normalizes saved commands", () => 
 
   assert.equal(migration.migrated, true);
   assert.equal(migration.previousVersion, 0);
-  assert.equal(migration.data[STORAGE_SCHEMA_VERSION_KEY], 1);
+  assert.equal(migration.data[STORAGE_SCHEMA_VERSION_KEY], 2);
   assert.deepEqual(migration.data[COMMANDS_STORAGE_KEY], {
     "example.com": [
       { id: "command-1", name: "Documentation", url: "https://example.com/docs" }
@@ -221,15 +289,23 @@ test("migrateStorage upgrades legacy data and normalizes saved commands", () => 
 });
 
 test("migrateStorage leaves the current schema current and rejects future data", () => {
-  const current = migrateStorage({
+  const previous = migrateStorage({
     storageSchemaVersion: 1,
+    commandsByHostname: {},
+    settings: {}
+  });
+  const current = migrateStorage({
+    storageSchemaVersion: 2,
     commandsByHostname: {},
     settings: { theme: "light", siteThemes: {} }
   });
 
+  assert.equal(previous.migrated, true);
+  assert.equal(previous.previousVersion, 1);
+  assert.equal(previous.data.storageSchemaVersion, 2);
   assert.equal(current.migrated, false);
   assert.throws(
-    () => migrateStorage({ storageSchemaVersion: 2 }),
-    /Unsupported storage schema version: 2/
+    () => migrateStorage({ storageSchemaVersion: 3 }),
+    /Unsupported storage schema version: 3/
   );
 });

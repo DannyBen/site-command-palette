@@ -69,6 +69,31 @@ test("palette keyboard, theme, and settings flows work in Chromium", { timeout: 
     await press(cdp, "`", "Backquote", 192);
     await waitFor(async () => hasPalette(cdp));
 
+    await press(cdp, "a", "KeyA", 65, 1);
+    await cdp.send("Input.insertText", { text: "Duplicate" });
+    await activateAccessibleNode(cdp, "button", "Save command");
+    await waitFor(async () => !(await hasAccessibleNode(cdp, "heading", "Add command")));
+
+    await press(cdp, "a", "KeyA", 65, 1);
+    await cdp.send("Input.insertText", { text: " duplicate " });
+    await activateAccessibleNode(cdp, "button", "Save command");
+    await waitFor(async () => (
+      await accessibleNodeText(cdp, "alert") ===
+        "This command already exists in this scope."
+    ));
+    assert.equal(
+      await hasAccessibleNode(cdp, "heading", "Add command"),
+      true,
+      "a duplicate should leave the add form open"
+    );
+    await press(cdp, "Escape", "Escape", 27);
+    await press(cdp, "x", "KeyX", 88, 1);
+    await waitFor(async () => hasAccessibleNode(
+      cdp,
+      "StaticText",
+      "No commands saved for 127.0.0.1."
+    ));
+
     await press(cdp, "`", "Backquote", 192);
     await waitFor(async () => !(await hasPalette(cdp)));
 
@@ -380,6 +405,43 @@ function hasPalette(cdp) {
 
 function paletteTheme(cdp) {
   return evaluate(cdp, "document.getElementById('site-command-palette-root')?.dataset.theme");
+}
+
+async function hasAccessibleNode(cdp, role, name) {
+  const { nodes } = await cdp.send("Accessibility.getFullAXTree");
+  return nodes.some((node) => node.role?.value === role && node.name?.value === name);
+}
+
+async function activateAccessibleNode(cdp, role, name) {
+  const { nodes } = await cdp.send("Accessibility.getFullAXTree");
+  const node = nodes.find((candidate) => (
+    candidate.role?.value === role && candidate.name?.value === name
+  ));
+  assert.ok(node?.backendDOMNodeId, `${role} named “${name}” should be accessible`);
+
+  const { object } = await cdp.send("DOM.resolveNode", {
+    backendNodeId: node.backendDOMNodeId
+  });
+  await cdp.send("Runtime.callFunctionOn", {
+    objectId: object.objectId,
+    functionDeclaration: "function() { this.click(); }"
+  });
+}
+
+async function accessibleNodeText(cdp, role) {
+  const { nodes } = await cdp.send("Accessibility.getFullAXTree");
+  const node = nodes.find((candidate) => candidate.role?.value === role);
+  if (!node?.backendDOMNodeId) return null;
+
+  const { object } = await cdp.send("DOM.resolveNode", {
+    backendNodeId: node.backendDOMNodeId
+  });
+  const { result } = await cdp.send("Runtime.callFunctionOn", {
+    objectId: object.objectId,
+    functionDeclaration: "function() { return this.textContent; }",
+    returnByValue: true
+  });
+  return result.value;
 }
 
 async function waitFor(callback, timeout = 5_000) {

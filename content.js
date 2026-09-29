@@ -1,6 +1,7 @@
 (() => {
   const {
     commandHint,
+    findCommandNameConflict,
     formatKeyBinding,
     fuzzyMatch,
     keyBindingHasModifier,
@@ -10,7 +11,7 @@
     normalizeSettings,
     normalizeUrl,
     resolveTheme,
-    scopeMatches
+    resolveCommandsForLocation
   } = globalThis.SiteCommandPaletteCore;
   const {
     COMMANDS_STORAGE_KEY,
@@ -383,6 +384,21 @@
       return;
     }
 
+    const conflict = findCommandNameConflict(
+      commandsByScope,
+      scope,
+      name,
+      editingCommandId
+    );
+    if (conflict) {
+      setError(conflict.url === url
+        ? "This command already exists in this scope."
+        : `A command named “${conflict.name}” already exists in this scope. Edit it instead.`);
+      palette.name.focus();
+      palette.name.select();
+      return;
+    }
+
     if (editingCommandId) {
       const previousCommands = commandsByScope[editingCommandScope] ?? [];
       commandsByScope[editingCommandScope] = previousCommands.filter(
@@ -655,11 +671,7 @@
   }
 
   function refreshCommands() {
-    commands = Object.entries(commandsByScope)
-      .filter(([scope]) => scopeMatches(scope, location))
-      .flatMap(([scope, scopedCommands]) => (
-        scopedCommands.map((command) => ({ ...command, scope }))
-      ));
+    commands = resolveCommandsForLocation(commandsByScope, location);
   }
 
   async function storeCommands() {
