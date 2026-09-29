@@ -135,7 +135,7 @@ test("palette keyboard, theme, and settings flows work in Chromium", { timeout: 
     await press(cdp, "Escape", "Escape", 27);
 
     await press(cdp, "a", "KeyA", 65, 1);
-    await cdp.send("Input.insertText", { text: "Second" });
+    await cdp.send("Input.insertText", { text: "Second  >  Detail <things like this>" });
     await activateAccessibleNode(cdp, "button", "Save command");
     await waitFor(async () => (await selectedOptionText(cdp)).includes("Duplicate"));
 
@@ -192,9 +192,13 @@ test("palette keyboard, theme, and settings flows work in Chromium", { timeout: 
     await cdp.send("Input.insertText", { text: "Second" });
     await waitFor(async () => (
       await selectedOptionText(cdp)
-    ).includes("Fixture › Second"));
+    ).includes("Fixture › Second › Detail <things like this>"));
     await press(cdp, "x", "KeyX", 88, 1);
-    await waitFor(async () => !(await hasAccessibleNode(cdp, "StaticText", "Fixture › Second")));
+    await waitFor(async () => !(await hasAccessibleNode(
+      cdp,
+      "StaticText",
+      "Fixture › Second › Detail <things like this>"
+    )));
     await press(cdp, "Escape", "Escape", 27);
     await waitFor(async () => hasAccessibleNode(cdp, "searchbox", "Search commands"));
 

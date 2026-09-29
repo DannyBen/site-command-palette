@@ -548,6 +548,7 @@
         type: "link",
         external: siteIdentity(command.url) !== siteIdentity(location),
         name: `${siteNameForUrl(sitesByHostname, command.url)} › ${command.page}`
+          .replace(/\s+>\s+/g, " › ")
       }));
 
     filteredItems = items
