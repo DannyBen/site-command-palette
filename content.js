@@ -552,10 +552,10 @@
     const hints = [];
 
     if (filteredItems.length > 1) {
-      hints.push("<kbd>↑</kbd><kbd>↓</kbd> select");
+      hints.push(footerHint("↑/↓", "Select"));
     }
     if (selectedItem) {
-      hints.push(`<kbd>Enter</kbd> ${selectedItem.type === "link" ? "open" : "run"}`);
+      hints.push(footerHint("Enter", selectedItem.type === "link" ? "Open" : "Run"));
     }
 
     hints.push(shortcutHint(settings.keyBindings.add, "add"));
@@ -565,8 +565,8 @@
       hints.push(shortcutHint(settings.keyBindings.remove, "delete"));
     }
 
-    hints.push("<kbd>Esc</kbd> close");
-    palette.footer.innerHTML = `<span>${hints.join(" · ")}</span>`;
+    hints.push(footerHint("Esc", "Close"));
+    palette.footer.innerHTML = `<span class="footer-hints">${hints.join(" ")}</span>`;
   }
 
   function moveSelection(offset) {
@@ -733,10 +733,11 @@
   }
 
   function shortcutHint(binding, label) {
-    const keys = formatKeyBinding(binding)
-      .split(" + ")
-      .map((key) => `<kbd>${escapeHtml(key)}</kbd>`)
-      .join("+");
-    return `${keys} ${label}`;
+    const shortcut = formatKeyBinding(binding).replaceAll(" + ", "+");
+    return footerHint(shortcut, capitalize(label));
+  }
+
+  function footerHint(shortcut, label) {
+    return `<span class="footer-hint"><kbd>${escapeHtml(shortcut)}</kbd> ${label}</span>`;
   }
 })();
