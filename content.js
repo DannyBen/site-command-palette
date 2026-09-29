@@ -388,7 +388,7 @@
     filteredItems.forEach((item, index) => {
       const row = document.createElement("div");
       const openButton = document.createElement("button");
-      const label = document.createElement("strong");
+      const label = document.createElement("span");
       const address = document.createElement("span");
 
       row.className = "command";
@@ -398,7 +398,9 @@
       openButton.type = "button";
       openButton.className = "open-command";
       openButton.dataset.activateItem = String(index);
+      label.className = "command-name";
       appendHighlightedText(label, item.name, item.match.indices);
+      address.className = "command-detail";
       address.textContent = item.type === "link" ? compactUrl(item.url) : item.detail;
       address.title = item.type === "link" ? item.url : item.detail;
       openButton.append(label, address);

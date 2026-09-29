@@ -5,11 +5,11 @@
   --selected-background-color: #ddd6fe;
   --selected-secondary-text-color: #52525b;
   --text-color: #18181b;
+  --command-text-color: #27272a;
   --muted-text-color: #71717a;
   --accent-color: #6d28d9;
   --accent-text-color: #ffffff;
-  --match-color: #7c3aed;
-  --selected-match-color: #5b21b6;
+  --match-color: #000000;
   --focus-ring-color: rgb(109 40 217 / 18%);
   --danger-color: #b91c1c;
   --danger-background-color: #fee2e2;
@@ -37,11 +37,11 @@
   --selected-background-color: #3b2e58;
   --selected-secondary-text-color: #d4d4d8;
   --text-color: #fafafa;
+  --command-text-color: #e4e4e7;
   --muted-text-color: #a1a1aa;
   --accent-color: #a78bfa;
   --accent-text-color: #18181b;
-  --match-color: #c4b5fd;
-  --selected-match-color: #ddd6fe;
+  --match-color: #ffffff;
   --focus-ring-color: rgb(167 139 250 / 24%);
   --danger-color: #fca5a5;
   --danger-background-color: #450a0a;
@@ -147,12 +147,8 @@ button {
     background: var(--selected-background-color);
     color: var(--text-color);
 
-    .open-command span {
+    .command-detail {
       color: var(--selected-secondary-text-color);
-    }
-
-    mark {
-      color: var(--selected-match-color);
     }
 
     .remove-command {
@@ -178,8 +174,8 @@ button {
   background: transparent;
   text-align: left;
 
-  strong,
-  span {
+  .command-name,
+  .command-detail {
     display: block;
     max-width: 100%;
     overflow: hidden;
@@ -187,12 +183,13 @@ button {
     white-space: nowrap;
   }
 
-  strong {
+  .command-name {
     min-width: 0;
-    font-weight: 600;
+    color: var(--command-text-color);
+    font-weight: 400;
   }
 
-  span {
+  .command-detail {
     color: var(--muted-text-color);
     font-size: 12px;
     text-align: right;
