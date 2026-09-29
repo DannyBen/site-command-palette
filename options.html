@@ -42,6 +42,55 @@
         </div>
       </section>
 
+      <section class="panel" aria-labelledby="key-bindings-heading">
+        <div class="section-heading">
+          <div>
+            <h2 id="key-bindings-heading">Key bindings</h2>
+            <p>Select a shortcut, then press the replacement keys.</p>
+          </div>
+          <button id="reset-key-bindings" type="button" class="secondary-button">Reset defaults</button>
+        </div>
+
+        <div id="key-binding-list" class="key-binding-list">
+          <div class="key-binding-row">
+            <div>
+              <h3>Open or close palette</h3>
+              <p>Primary shortcut</p>
+            </div>
+            <button type="button" class="key-binding-button" data-key-binding="togglePrimary"></button>
+          </div>
+          <div class="key-binding-row">
+            <div>
+              <h3>Open or close palette</h3>
+              <p>Alternate shortcut · press Backspace to clear</p>
+            </div>
+            <button type="button" class="key-binding-button" data-key-binding="toggleAlternate"></button>
+          </div>
+          <div class="key-binding-row">
+            <div>
+              <h3>Add current page</h3>
+              <p>Available while the palette is open</p>
+            </div>
+            <button type="button" class="key-binding-button" data-key-binding="add"></button>
+          </div>
+          <div class="key-binding-row">
+            <div>
+              <h3>Edit selected command</h3>
+              <p>Available when a saved command is selected</p>
+            </div>
+            <button type="button" class="key-binding-button" data-key-binding="edit"></button>
+          </div>
+          <div class="key-binding-row">
+            <div>
+              <h3>Delete selected command</h3>
+              <p>Available when a saved command is selected</p>
+            </div>
+            <button type="button" class="key-binding-button" data-key-binding="remove"></button>
+          </div>
+          <p id="key-binding-message" class="key-binding-message" role="status" aria-live="polite"></p>
+        </div>
+      </section>
+
       <section class="panel" aria-labelledby="backup-heading">
         <div class="section-heading">
           <div>

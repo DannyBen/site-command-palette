@@ -1,7 +1,10 @@
 (() => {
   const {
     compactUrl,
+    formatKeyBinding,
     fuzzyMatch,
+    keyBindingHasModifier,
+    matchesKeyBinding,
     normalizeSettings,
     normalizeUrl,
     resolveTheme
@@ -32,6 +35,16 @@
   window.addEventListener("keyup", suppressPageKeyEvent, true);
   chrome.storage.onChanged.addListener(handleStorageChange);
   systemTheme.addEventListener("change", applyTheme);
+  loadStoredSettings();
+
+  async function loadStoredSettings() {
+    try {
+      const stored = await loadStorage();
+      settings = stored[SETTINGS_STORAGE_KEY];
+    } catch (error) {
+      console.error("Site Command Palette settings failed to load:", error);
+    }
+  }
 
   function handlePageKeydown(event) {
     if (palette) {
@@ -57,15 +70,16 @@
   }
 
   function isPaletteShortcut(event, allowBareInEditable) {
-    if (event.code !== "Backquote" || event.repeat) return false;
+    if (event.repeat) return false;
 
-    const noOtherModifiers = !event.ctrlKey && !event.metaKey && !event.shiftKey;
-    const altBacktick = event.altKey && noOtherModifiers;
-    const bareBacktick = !event.altKey && noOtherModifiers && (
-      allowBareInEditable || !isEditable(event.composedPath()[0])
-    );
+    const binding = [
+      settings.keyBindings.togglePrimary,
+      settings.keyBindings.toggleAlternate
+    ].find((candidate) => matchesKeyBinding(event, candidate));
+    if (!binding) return false;
 
-    return altBacktick || bareBacktick;
+    return allowBareInEditable || keyBindingHasModifier(binding) ||
+      !isEditable(event.composedPath()[0]);
   }
 
   function isEditable(target) {
@@ -95,22 +109,14 @@
 
     if (palette.mode !== "list") return;
 
-    if (
-      event.altKey &&
-      !event.ctrlKey &&
-      !event.metaKey &&
-      event.key.toLocaleLowerCase() === "a"
-    ) {
+    if (matchesKeyBinding(event, settings.keyBindings.add)) {
       event.preventDefault();
       showAddForm();
       return;
     }
 
     if (
-      event.altKey &&
-      !event.ctrlKey &&
-      !event.metaKey &&
-      event.key.toLocaleLowerCase() === "e" &&
+      matchesKeyBinding(event, settings.keyBindings.edit) &&
       filteredItems[selectedIndex]?.type === "link"
     ) {
       event.preventDefault();
@@ -119,23 +125,7 @@
     }
 
     if (
-      event.altKey &&
-      !event.ctrlKey &&
-      !event.metaKey &&
-      event.key.toLocaleLowerCase() === "t"
-    ) {
-      event.preventDefault();
-      palette.search.value = "/theme";
-      filterAndRender();
-      palette.search.focus();
-      return;
-    }
-
-    if (
-      event.altKey &&
-      !event.ctrlKey &&
-      !event.metaKey &&
-      event.key.toLocaleLowerCase() === "x" &&
+      matchesKeyBinding(event, settings.keyBindings.remove) &&
       filteredItems[selectedIndex]?.type === "link"
     ) {
       event.preventDefault();
@@ -196,9 +186,7 @@
               aria-label="Search commands" placeholder="Search ${escapeHtml(location.hostname)} commands">
           </header>
           <div class="commands" role="listbox" aria-label="Commands"></div>
-          <footer>
-            <span><kbd>↑</kbd><kbd>↓</kbd> select · <kbd>Enter</kbd> open · <kbd>Alt</kbd>+<kbd>A</kbd> add · <kbd>Alt</kbd>+<kbd>T</kbd> theme · <kbd>Alt</kbd>+<kbd>E</kbd> edit · <kbd>Alt</kbd>+<kbd>X</kbd> delete · <kbd>Esc</kbd> close</span>
-          </footer>
+          <footer></footer>
         </div>
         <form class="add-view" hidden>
           <h1 class="form-title">Add command</h1>
@@ -232,6 +220,7 @@
       addView: overlay.querySelector(".add-view"),
       search: overlay.querySelector(".search"),
       commandList: overlay.querySelector(".commands"),
+      footer: overlay.querySelector("footer"),
       name: overlay.querySelector(".name"),
       url: overlay.querySelector(".url"),
       error: overlay.querySelector(".error"),
@@ -387,6 +376,7 @@
       }
 
       palette.commandList.append(empty);
+      renderFooter();
       return;
     }
 
@@ -425,6 +415,30 @@
 
       palette.commandList.append(row);
     });
+
+    renderFooter();
+  }
+
+  function renderFooter() {
+    const selectedItem = filteredItems[selectedIndex];
+    const hints = [];
+
+    if (filteredItems.length > 1) {
+      hints.push("<kbd>↑</kbd><kbd>↓</kbd> select");
+    }
+    if (selectedItem) {
+      hints.push(`<kbd>Enter</kbd> ${selectedItem.type === "link" ? "open" : "run"}`);
+    }
+
+    hints.push(shortcutHint(settings.keyBindings.add, "add"));
+
+    if (selectedItem?.type === "link") {
+      hints.push(shortcutHint(settings.keyBindings.edit, "edit"));
+      hints.push(shortcutHint(settings.keyBindings.remove, "delete"));
+    }
+
+    hints.push("<kbd>Esc</kbd> close");
+    palette.footer.innerHTML = `<span>${hints.join(" · ")}</span>`;
   }
 
   function moveSelection(offset) {
@@ -580,5 +594,13 @@
       .replaceAll(">", "&gt;")
       .replaceAll('"', "&quot;")
       .replaceAll("'", "&#039;");
+  }
+
+  function shortcutHint(binding, label) {
+    const keys = formatKeyBinding(binding)
+      .split(" + ")
+      .map((key) => `<kbd>${escapeHtml(key)}</kbd>`)
+      .join("+");
+    return `${keys} ${label}`;
   }
 })();

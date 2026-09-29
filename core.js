@@ -3,6 +3,24 @@
   const STORAGE_SCHEMA_VERSION_KEY = "storageSchemaVersion";
   const COMMANDS_STORAGE_KEY = "commandsByHostname";
   const SETTINGS_STORAGE_KEY = "settings";
+  const DEFAULT_KEY_BINDINGS = Object.freeze({
+    togglePrimary: "Backquote",
+    toggleAlternate: "Alt+Backquote",
+    add: "Alt+KeyA",
+    edit: "Alt+KeyE",
+    remove: "Alt+KeyX"
+  });
+  const MODIFIER_CODES = new Set([
+    "AltLeft",
+    "AltRight",
+    "ControlLeft",
+    "ControlRight",
+    "MetaLeft",
+    "MetaRight",
+    "ShiftLeft",
+    "ShiftRight"
+  ]);
+  const MODIFIERS = ["Ctrl", "Alt", "Shift", "Meta"];
 
   function normalizeUrl(value) {
     try {
@@ -71,6 +89,78 @@
     return `${formattedDate} at ${formattedTime}`;
   }
 
+  function normalizeKeyBinding(value) {
+    if (typeof value !== "string" || !value) return null;
+
+    const parts = value.split("+");
+    const code = parts.pop();
+    if (!code || MODIFIER_CODES.has(code) || !/^[A-Za-z][A-Za-z0-9]*$/.test(code)) return null;
+    if (new Set(parts).size !== parts.length || parts.some((part) => !MODIFIERS.includes(part))) {
+      return null;
+    }
+
+    return [...MODIFIERS.filter((modifier) => parts.includes(modifier)), code].join("+");
+  }
+
+  function normalizeKeyBindings(value) {
+    const storedBindings = value && typeof value === "object" ? value : {};
+    const bindings = {};
+
+    for (const [name, defaultBinding] of Object.entries(DEFAULT_KEY_BINDINGS)) {
+      const storedBinding = normalizeKeyBinding(storedBindings[name]);
+      bindings[name] = name === "toggleAlternate" && storedBindings[name] === null
+        ? null
+        : storedBinding ?? defaultBinding;
+    }
+
+    return bindings;
+  }
+
+  function keyBindingFromEvent(event) {
+    if (!event?.code || MODIFIER_CODES.has(event.code)) return null;
+
+    return [
+      event.ctrlKey ? "Ctrl" : null,
+      event.altKey ? "Alt" : null,
+      event.shiftKey ? "Shift" : null,
+      event.metaKey ? "Meta" : null,
+      event.code
+    ].filter(Boolean).join("+");
+  }
+
+  function matchesKeyBinding(event, binding) {
+    return Boolean(binding) && keyBindingFromEvent(event) === binding;
+  }
+
+  function keyBindingHasModifier(binding) {
+    return typeof binding === "string" && binding.includes("+");
+  }
+
+  function formatKeyBinding(binding) {
+    if (!binding) return "Not set";
+
+    const labels = {
+      Backquote: "`",
+      Backslash: "\\",
+      BracketLeft: "[",
+      BracketRight: "]",
+      Comma: ",",
+      Equal: "=",
+      Minus: "-",
+      Period: ".",
+      Quote: "'",
+      Semicolon: ";",
+      Slash: "/",
+      Space: "Space"
+    };
+
+    return binding.split("+").map((part) => {
+      if (/^Key[A-Z]$/.test(part)) return part.slice(3);
+      if (/^Digit\d$/.test(part)) return part.slice(5);
+      return labels[part] ?? part;
+    }).join(" + ");
+  }
+
   function normalizeSettings(value) {
     const storedSettings = value && typeof value === "object" ? value : {};
     const storedSiteThemes = storedSettings.siteThemes;
@@ -87,7 +177,8 @@
       theme: ["light", "dark", "system"].includes(storedSettings.theme)
         ? storedSettings.theme
         : "light",
-      siteThemes
+      siteThemes,
+      keyBindings: normalizeKeyBindings(storedSettings.keyBindings)
     };
   }
 
@@ -148,15 +239,22 @@
 
   const api = Object.freeze({
     COMMANDS_STORAGE_KEY,
+    DEFAULT_KEY_BINDINGS,
     SETTINGS_STORAGE_KEY,
     STORAGE_SCHEMA_VERSION,
     STORAGE_SCHEMA_VERSION_KEY,
     compactUrl,
     formatBackupDate,
+    formatKeyBinding,
     fuzzyMatch,
+    keyBindingFromEvent,
+    keyBindingHasModifier,
+    matchesKeyBinding,
     migrateStorage,
     middleEllipsis,
     normalizeCommandsByHostname,
+    normalizeKeyBinding,
+    normalizeKeyBindings,
     normalizeSettings,
     normalizeUrl,
     resolveTheme

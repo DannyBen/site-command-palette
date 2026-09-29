@@ -13,11 +13,12 @@ yet published in the Chrome Web Store.
 - Fuzzy search with bold character highlighting and keyboard result selection.
 - Backtick opens the palette; Alt+Backtick also works from editable fields.
 - Arrow keys select a command, Enter activates it, and Escape clears or closes.
-- Alt+A adds the current page with its title and URL already filled in.
-- Alt+E edits the selected command and Alt+X deletes it.
+- Default shortcuts use Alt+A to add, Alt+E to edit, and Alt+X to delete.
+- Activation and palette-action shortcuts are configurable in Settings.
 - Slash actions provide quick access to `/add`, `/theme`, and `/settings`.
 - Light, Dark, and System themes with optional per-site overrides.
 - Commands and preferences remain in local Chrome extension storage.
+- Optional automatic backups write versioned JSON snapshots to a folder you choose.
 - Page shortcuts are suppressed while the palette is open.
 
 ## Install Locally

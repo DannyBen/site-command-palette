@@ -3,11 +3,16 @@ const assert = require("node:assert/strict");
 
 const {
   COMMANDS_STORAGE_KEY,
+  DEFAULT_KEY_BINDINGS,
   SETTINGS_STORAGE_KEY,
   STORAGE_SCHEMA_VERSION_KEY,
   compactUrl,
   formatBackupDate,
+  formatKeyBinding,
   fuzzyMatch,
+  keyBindingFromEvent,
+  keyBindingHasModifier,
+  matchesKeyBinding,
   migrateStorage,
   middleEllipsis,
   normalizeSettings,
@@ -57,8 +62,30 @@ test("formatBackupDate uses an unambiguous long date and 24-hour time", () => {
   assert.equal(formatBackupDate("not a date"), "Unknown date");
 });
 
-test("normalizeSettings supplies defaults and discards invalid themes", () => {
-  assert.deepEqual(normalizeSettings(), { version: 1, theme: "light", siteThemes: {} });
+test("key bindings normalize, display, and match keyboard events", () => {
+  const event = {
+    code: "KeyK",
+    ctrlKey: true,
+    altKey: false,
+    shiftKey: true,
+    metaKey: false
+  };
+
+  assert.equal(keyBindingFromEvent(event), "Ctrl+Shift+KeyK");
+  assert.equal(formatKeyBinding("Ctrl+Shift+KeyK"), "Ctrl + Shift + K");
+  assert.equal(matchesKeyBinding(event, "Ctrl+Shift+KeyK"), true);
+  assert.equal(matchesKeyBinding(event, "Alt+KeyK"), false);
+  assert.equal(keyBindingHasModifier("Alt+Backquote"), true);
+  assert.equal(keyBindingHasModifier("Backquote"), false);
+});
+
+test("normalizeSettings supplies defaults and discards invalid values", () => {
+  assert.deepEqual(normalizeSettings(), {
+    version: 1,
+    theme: "light",
+    siteThemes: {},
+    keyBindings: { ...DEFAULT_KEY_BINDINGS }
+  });
   assert.deepEqual(
     normalizeSettings({
       theme: "dark",
@@ -66,6 +93,11 @@ test("normalizeSettings supplies defaults and discards invalid themes", () => {
         "dark.example": "dark",
         "light.example": "light",
         "invalid.example": "blue"
+      },
+      keyBindings: {
+        toggleAlternate: null,
+        add: "Ctrl+Shift+KeyK",
+        edit: "invalid shortcut"
       }
     }),
     {
@@ -74,6 +106,11 @@ test("normalizeSettings supplies defaults and discards invalid themes", () => {
       siteThemes: {
         "dark.example": "dark",
         "light.example": "light"
+      },
+      keyBindings: {
+        ...DEFAULT_KEY_BINDINGS,
+        toggleAlternate: null,
+        add: "Ctrl+Shift+KeyK"
       }
     }
   );
@@ -119,7 +156,8 @@ test("migrateStorage upgrades legacy data and normalizes saved commands", () => 
   assert.deepEqual(migration.data[SETTINGS_STORAGE_KEY], {
     version: 1,
     theme: "dark",
-    siteThemes: { "example.com": "light" }
+    siteThemes: { "example.com": "light" },
+    keyBindings: { ...DEFAULT_KEY_BINDINGS }
   });
 });
 

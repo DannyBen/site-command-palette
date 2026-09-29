@@ -86,7 +86,20 @@ test("palette keyboard, theme, and settings flows work in Chromium", { timeout: 
       "page shortcuts should not receive palette keystrokes"
     );
 
+    await press(cdp, "`", "Backquote", 192);
+    await waitFor(async () => !(await hasPalette(cdp)));
+    await press(cdp, "`", "Backquote", 192);
+    await waitFor(async () => hasPalette(cdp));
     await press(cdp, "t", "KeyT", 84, 1);
+    await press(cdp, "ArrowDown", "ArrowDown", 40);
+    await press(cdp, "Enter", "Enter", 13);
+    assert.equal(
+      await paletteTheme(cdp),
+      "light",
+      "Alt+T should not trigger the theme command"
+    );
+
+    await cdp.send("Input.insertText", { text: "/theme" });
     await press(cdp, "ArrowDown", "ArrowDown", 40);
     await press(cdp, "Enter", "Enter", 13);
     await waitFor(async () => (await paletteTheme(cdp)) === "dark");
@@ -142,6 +155,32 @@ test("palette keyboard, theme, and settings flows work in Chromium", { timeout: 
         "10",
         "backup history should default to ten previous versions"
       );
+      assert.equal(
+        await evaluate(optionsCdp, "document.querySelector('[data-key-binding=\"add\"]').textContent"),
+        "Alt + A"
+      );
+      await evaluate(optionsCdp, `document.querySelector('[data-key-binding="add"]').click()`);
+      await press(optionsCdp, "K", "KeyK", 75, 10);
+      await waitFor(async () => evaluate(
+        optionsCdp,
+        `document.querySelector('[data-key-binding="add"]').textContent === 'Ctrl + Shift + K'`
+      ));
+      await evaluate(optionsCdp, `document.querySelector('[data-key-binding="edit"]').click()`);
+      await press(optionsCdp, "K", "KeyK", 75, 10);
+      await waitFor(async () => evaluate(
+        optionsCdp,
+        "document.getElementById('key-binding-message').textContent.includes('already used')"
+      ));
+      assert.equal(
+        await evaluate(optionsCdp, "document.querySelector('[data-key-binding=\"edit\"]').textContent"),
+        "Press shortcut…",
+        "a conflicting shortcut should not be saved"
+      );
+      await evaluate(optionsCdp, "document.getElementById('reset-key-bindings').click()");
+      await waitFor(async () => evaluate(
+        optionsCdp,
+        `document.querySelector('[data-key-binding="add"]').textContent === 'Alt + A'`
+      ));
       assert.deepEqual(
         await evaluate(optionsCdp, `JSON.stringify({
           h1: getComputedStyle(document.querySelector('h1')).fontSize,

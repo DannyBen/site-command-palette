@@ -1,6 +1,10 @@
 (() => {
   const {
+    DEFAULT_KEY_BINDINGS,
     formatBackupDate,
+    formatKeyBinding,
+    keyBindingFromEvent,
+    keyBindingHasModifier,
     normalizeSettings,
     resolveTheme
   } = globalThis.SiteCommandPaletteCore;
@@ -28,6 +32,9 @@
   const emptyOverrides = document.getElementById("empty-overrides");
   const overrideCount = document.getElementById("override-count");
   const saveStatus = document.getElementById("save-status");
+  const keyBindingList = document.getElementById("key-binding-list");
+  const keyBindingMessage = document.getElementById("key-binding-message");
+  const resetKeyBindings = document.getElementById("reset-key-bindings");
   const backupState = document.getElementById("backup-state");
   const backupFolder = document.getElementById("backup-folder");
   const lastBackup = document.getElementById("last-backup");
@@ -43,12 +50,16 @@
   let statusTimer = null;
   let pendingDirectory = null;
   let currentBackupState = null;
+  let capturingBinding = null;
 
   globalTheme.addEventListener("change", saveGlobalTheme);
   overrideList.addEventListener("change", updateSiteTheme);
   overrideList.addEventListener("click", removeSiteTheme);
   systemTheme.addEventListener("change", applyTheme);
   chrome.storage.onChanged.addListener(handleStorageChange);
+  keyBindingList.addEventListener("click", beginKeyBindingCapture);
+  resetKeyBindings.addEventListener("click", restoreDefaultKeyBindings);
+  document.addEventListener("keydown", captureKeyBinding, true);
   chooseBackupFolder.addEventListener("click", chooseFolder);
   backupNow.addEventListener("click", runManualBackup);
   restoreBackup.addEventListener("click", restoreFromBackup);
@@ -69,6 +80,7 @@
     globalTheme.value = settings.theme;
     applyTheme();
     renderSiteThemes();
+    renderKeyBindings();
   }
 
   function applyTheme() {
@@ -109,6 +121,109 @@
 
     row.append(name, select, remove);
     return row;
+  }
+
+  function renderKeyBindings() {
+    for (const button of keyBindingList.querySelectorAll("[data-key-binding]")) {
+      const name = button.dataset.keyBinding;
+      button.textContent = capturingBinding === name
+        ? "Press shortcut…"
+        : formatKeyBinding(settings.keyBindings[name]);
+      button.toggleAttribute("data-capturing", capturingBinding === name);
+      button.setAttribute("aria-pressed", String(capturingBinding === name));
+    }
+  }
+
+  function beginKeyBindingCapture(event) {
+    const button = event.target.closest("[data-key-binding]");
+    if (!button) return;
+
+    capturingBinding = button.dataset.keyBinding;
+    showKeyBindingMessage(
+      capturingBinding === "toggleAlternate"
+        ? "Press a shortcut, Backspace to clear, or Escape to cancel."
+        : "Press a shortcut or Escape to cancel."
+    );
+    renderKeyBindings();
+  }
+
+  async function captureKeyBinding(event) {
+    if (!capturingBinding) return;
+
+    event.preventDefault();
+    event.stopImmediatePropagation();
+
+    if (event.code === "Escape") {
+      cancelKeyBindingCapture();
+      return;
+    }
+
+    const binding = keyBindingFromEvent(event);
+    if (!binding) return;
+
+    if (capturingBinding === "toggleAlternate" &&
+        !keyBindingHasModifier(binding) && ["Backspace", "Delete"].includes(event.code)) {
+      settings.keyBindings.toggleAlternate = null;
+      capturingBinding = null;
+      await storeSettings("Alternate shortcut cleared");
+      showKeyBindingMessage("Alternate shortcut cleared.");
+      return;
+    }
+
+    if (["Escape", "Tab", "Enter", "NumpadEnter", "ArrowUp", "ArrowDown"].includes(event.code)) {
+      showKeyBindingMessage("That key is reserved for palette navigation.", true);
+      return;
+    }
+    if (["add", "edit", "remove"].includes(capturingBinding) &&
+        !keyBindingHasModifier(binding)) {
+      showKeyBindingMessage("Palette actions must include Ctrl, Alt, Shift, or Meta.", true);
+      return;
+    }
+
+    const conflict = Object.entries(settings.keyBindings).find(([name, value]) => (
+      name !== capturingBinding && value === binding
+    ));
+    if (conflict) {
+      showKeyBindingMessage(
+        `${formatKeyBinding(binding)} is already used by ${keyBindingLabel(conflict[0])}.`,
+        true
+      );
+      return;
+    }
+
+    const bindingName = capturingBinding;
+    settings.keyBindings[bindingName] = binding;
+    capturingBinding = null;
+    await storeSettings("Key binding saved");
+    showKeyBindingMessage(`${keyBindingLabel(bindingName)} set to ${formatKeyBinding(binding)}.`);
+  }
+
+  function cancelKeyBindingCapture() {
+    capturingBinding = null;
+    showKeyBindingMessage("");
+    renderKeyBindings();
+  }
+
+  async function restoreDefaultKeyBindings() {
+    capturingBinding = null;
+    settings.keyBindings = { ...DEFAULT_KEY_BINDINGS };
+    await storeSettings("Default key bindings restored");
+    showKeyBindingMessage("Default key bindings restored.");
+  }
+
+  function keyBindingLabel(name) {
+    return {
+      togglePrimary: "the primary palette shortcut",
+      toggleAlternate: "the alternate palette shortcut",
+      add: "Add current page",
+      edit: "Edit selected command",
+      remove: "Delete selected command"
+    }[name];
+  }
+
+  function showKeyBindingMessage(message, isError = false) {
+    keyBindingMessage.textContent = message;
+    keyBindingMessage.dataset.status = isError ? "error" : "success";
   }
 
   async function saveGlobalTheme() {
