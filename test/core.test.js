@@ -24,7 +24,8 @@ const {
   normalizeUrl,
   resolveCommandsForLocation,
   resolveTheme,
-  scopeMatches
+  scopeMatches,
+  urlMatchesPage
 } = require("../core.js");
 
 test("normalizeUrl accepts HTTP URLs and rejects unsafe protocols", () => {
@@ -196,6 +197,22 @@ test("isExternalUrl compares destination hostnames and ignores www", () => {
     isExternalUrl("https://github.com/", "https://example.com/current"),
     true
   );
+});
+
+test("urlMatchesPage compares normalized HTTP URLs exactly", () => {
+  assert.equal(
+    urlMatchesPage("https://example.com", "https://example.com/"),
+    true
+  );
+  assert.equal(
+    urlMatchesPage("https://example.com/page", { href: "https://example.com/page" }),
+    true
+  );
+  assert.equal(
+    urlMatchesPage("https://example.com/page#one", "https://example.com/page#two"),
+    false
+  );
+  assert.equal(urlMatchesPage("not a URL", "https://example.com/"), false);
 });
 
 test("formatBackupDate uses an unambiguous long date and 24-hour time", () => {

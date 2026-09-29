@@ -12,7 +12,8 @@
     normalizeSettings,
     normalizeUrl,
     resolveTheme,
-    resolveCommandsForLocation
+    resolveCommandsForLocation,
+    urlMatchesPage
   } = globalThis.SiteCommandPaletteCore;
   const {
     COMMANDS_STORAGE_KEY,
@@ -468,7 +469,12 @@
     }
 
     const preferredIndex = filteredItems.findIndex((item) => item.id === preferredItemId);
-    selectedIndex = preferredIndex >= 0 ? preferredIndex : 0;
+    const currentPageIndex = !actionMode && !query
+      ? filteredItems.findIndex((item) => urlMatchesPage(item.url, location))
+      : -1;
+    selectedIndex = preferredIndex >= 0
+      ? preferredIndex
+      : Math.max(currentPageIndex, 0);
     renderItems(actionMode);
   }
 
@@ -513,6 +519,7 @@
       const address = document.createElement("span");
 
       row.className = "command";
+      row.dataset.itemIndex = String(index);
       row.setAttribute("role", "option");
       row.setAttribute("aria-selected", String(index === selectedIndex));
 
@@ -574,7 +581,8 @@
 
     selectedIndex = (selectedIndex + offset + filteredItems.length) % filteredItems.length;
     renderItems(palette.search.value.trim().startsWith("/"));
-    palette.commandList.children[selectedIndex]?.scrollIntoView({ block: "nearest" });
+    palette.commandList.querySelector(`[data-item-index="${selectedIndex}"]`)
+      ?.scrollIntoView({ block: "nearest" });
   }
 
   async function activateItem(item) {

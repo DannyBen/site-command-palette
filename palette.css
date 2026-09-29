@@ -182,6 +182,14 @@ button {
     background: var(--hover-background-color);
   }
 
+  &:hover,
+  &[aria-selected="true"] {
+    .remove-command {
+      opacity: 1;
+      pointer-events: auto;
+    }
+  }
+
   &[aria-selected="true"] {
     background: var(--list-selection-background-color);
     color: var(--text-color);
@@ -249,12 +257,17 @@ button {
   background: transparent;
   color: var(--muted-text-color);
   font-size: 18px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
 
   &:hover,
   &:focus-visible {
     outline: none;
     background: var(--danger-background-color);
     color: var(--danger-color);
+    opacity: 1;
+    pointer-events: auto;
   }
 }
 

@@ -42,6 +42,7 @@ test("palette keyboard, theme, and settings flows work in Chromium", { timeout: 
   const profile = await mkdtemp(path.join(os.tmpdir(), "site-command-palette-test-"));
   const chromium = await findChromium();
   const address = server.address();
+  const pageUrl = `http://127.0.0.1:${address.port}/`;
   const browser = spawn(chromium, [
     "--headless=new",
     "--no-sandbox",
@@ -50,8 +51,9 @@ test("palette keyboard, theme, and settings flows work in Chromium", { timeout: 
     `--user-data-dir=${profile}`,
     "--remote-debugging-address=127.0.0.1",
     "--remote-debugging-port=0",
+    `--disable-extensions-except=${extensionRoot}`,
     `--load-extension=${extensionRoot}`,
-    `http://127.0.0.1:${address.port}/`
+    "about:blank"
   ], { stdio: ["ignore", "ignore", "pipe"] });
   let browserErrors = "";
   browser.stderr.on("data", (chunk) => {
@@ -61,10 +63,15 @@ test("palette keyboard, theme, and settings flows work in Chromium", { timeout: 
   let cdp;
   try {
     const port = await waitForDebuggingPort(profile, browser, () => browserErrors);
+    await waitForExtensionTarget(port, () => browserErrors);
     const target = await waitForPageTarget(port);
     cdp = await connectCdp(target.webSocketDebuggerUrl);
 
-    await waitFor(async () => evaluate(cdp, "document.readyState === 'complete'"));
+    await cdp.send("Page.navigate", { url: pageUrl });
+    await waitFor(async () => evaluate(
+      cdp,
+      `location.href === ${JSON.stringify(pageUrl)} && document.readyState === 'complete'`
+    ));
 
     await openPalette(cdp);
 
@@ -92,6 +99,13 @@ test("palette keyboard, theme, and settings flows work in Chromium", { timeout: 
     await setAccessibleInputValue(cdp, "URL", "https://github.com/");
     await activateAccessibleNode(cdp, "button", "Save command");
     await waitFor(async () => hasAccessibleNode(cdp, "separator", "External commands"));
+    assert.match(
+      await selectedOptionText(cdp),
+      /Duplicate/,
+      "the command matching the current page should be selected"
+    );
+    assert.equal(await accessibleNodeStyle(cdp, "button", "Remove Duplicate", "opacity"), "1");
+    assert.equal(await accessibleNodeStyle(cdp, "button", "Remove External", "opacity"), "0");
 
     await press(cdp, "x", "KeyX", 88, 1);
     await waitFor(async () => !(await hasAccessibleNode(
@@ -346,11 +360,31 @@ async function waitForPageTarget(port) {
     try {
       const response = await fetch(`http://127.0.0.1:${port}/json/list`);
       const targets = await response.json();
-      return targets.find((target) => target.type === "page" && target.url.startsWith("http://127.0.0.1:"));
+      return targets.find((target) => target.type === "page" && target.url === "about:blank");
     } catch {
       return false;
     }
   });
+}
+
+async function waitForExtensionTarget(port, errors) {
+  try {
+    return await waitFor(async () => {
+      try {
+        const response = await fetch(`http://127.0.0.1:${port}/json/list`);
+        const targets = await response.json();
+        return targets.find((target) => (
+          target.type === "service_worker" &&
+          target.url.startsWith("chrome-extension://") &&
+          target.url.endsWith("/background.js")
+        ));
+      } catch {
+        return false;
+      }
+    }, 15_000);
+  } catch {
+    throw new Error(`Extension service worker did not start\n${errors()}`);
+  }
 }
 
 async function waitForOptionsTarget(port) {
@@ -415,16 +449,9 @@ function hasPalette(cdp) {
   return evaluate(cdp, "Boolean(document.getElementById('site-command-palette-root'))");
 }
 
-async function openPalette(cdp, timeout = 15_000) {
-  const deadline = Date.now() + timeout;
-
-  while (Date.now() < deadline) {
-    if (await hasPalette(cdp)) return;
-    await press(cdp, "`", "Backquote", 192);
-    await new Promise((resolve) => setTimeout(resolve, 250));
-  }
-
-  throw new Error(`Palette did not open within ${timeout}ms`);
+async function openPalette(cdp) {
+  await press(cdp, "`", "Backquote", 192);
+  await waitFor(async () => hasPalette(cdp));
 }
 
 function paletteTheme(cdp) {
@@ -467,6 +494,46 @@ async function setAccessibleInputValue(cdp, name, value) {
     functionDeclaration: "function(value) { this.value = value; }",
     arguments: [{ value }]
   });
+}
+
+async function selectedOptionText(cdp) {
+  const { nodes } = await cdp.send("Accessibility.getFullAXTree");
+  const node = nodes.find((candidate) => (
+    candidate.role?.value === "option" &&
+    candidate.properties?.some((property) => (
+      property.name === "selected" && property.value?.value === true
+    ))
+  ));
+  assert.ok(node?.backendDOMNodeId, "a selected option should be accessible");
+
+  const { object } = await cdp.send("DOM.resolveNode", {
+    backendNodeId: node.backendDOMNodeId
+  });
+  const { result } = await cdp.send("Runtime.callFunctionOn", {
+    objectId: object.objectId,
+    functionDeclaration: "function() { return this.textContent; }",
+    returnByValue: true
+  });
+  return result.value;
+}
+
+async function accessibleNodeStyle(cdp, role, name, property) {
+  const { nodes } = await cdp.send("Accessibility.getFullAXTree");
+  const node = nodes.find((candidate) => (
+    candidate.role?.value === role && candidate.name?.value === name
+  ));
+  assert.ok(node?.backendDOMNodeId, `${role} named “${name}” should be accessible`);
+
+  const { object } = await cdp.send("DOM.resolveNode", {
+    backendNodeId: node.backendDOMNodeId
+  });
+  const { result } = await cdp.send("Runtime.callFunctionOn", {
+    objectId: object.objectId,
+    functionDeclaration: "function(property) { return getComputedStyle(this)[property]; }",
+    arguments: [{ value: property }],
+    returnByValue: true
+  });
+  return result.value;
 }
 
 async function accessibleNodeText(cdp, role) {

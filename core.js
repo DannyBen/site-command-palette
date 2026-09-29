@@ -149,6 +149,12 @@
     return url.hostname.replace(/^www\./, "");
   }
 
+  function urlMatchesPage(urlValue, locationValue) {
+    const locationUrl = locationValue?.href ?? locationValue;
+    const url = normalizeUrl(urlValue);
+    return url !== null && url === normalizeUrl(locationUrl);
+  }
+
   function middleEllipsis(value, maximumLength) {
     if (value.length <= maximumLength) return value;
 
@@ -426,7 +432,8 @@
     normalizeUrl,
     resolveTheme,
     resolveCommandsForLocation,
-    scopeMatches
+    scopeMatches,
+    urlMatchesPage
   });
 
   globalThis.SiteCommandPaletteCore = api;
