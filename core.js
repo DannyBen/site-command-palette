@@ -135,6 +135,20 @@
       : middleEllipsis(destination.pathname, 42);
   }
 
+  function isExternalUrl(urlValue, locationValue) {
+    try {
+      const destination = new URL(urlValue);
+      const location = new URL(locationValue.href ?? locationValue);
+      return siteHostname(destination) !== siteHostname(location);
+    } catch {
+      return false;
+    }
+  }
+
+  function siteHostname(url) {
+    return url.hostname.replace(/^www\./, "");
+  }
+
   function middleEllipsis(value, maximumLength) {
     if (value.length <= maximumLength) return value;
 
@@ -398,6 +412,7 @@
     formatBackupDate,
     formatKeyBinding,
     fuzzyMatch,
+    isExternalUrl,
     keyBindingFromEvent,
     keyBindingHasModifier,
     matchesKeyBinding,

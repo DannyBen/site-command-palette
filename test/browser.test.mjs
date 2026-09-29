@@ -86,6 +86,19 @@ test("palette keyboard, theme, and settings flows work in Chromium", { timeout: 
       "a duplicate should leave the add form open"
     );
     await press(cdp, "Escape", "Escape", 27);
+
+    await press(cdp, "a", "KeyA", 65, 1);
+    await cdp.send("Input.insertText", { text: "External" });
+    await setAccessibleInputValue(cdp, "URL", "https://github.com/");
+    await activateAccessibleNode(cdp, "button", "Save command");
+    await waitFor(async () => hasAccessibleNode(cdp, "separator", "External commands"));
+
+    await press(cdp, "x", "KeyX", 88, 1);
+    await waitFor(async () => !(await hasAccessibleNode(
+      cdp,
+      "separator",
+      "External commands"
+    )));
     await press(cdp, "x", "KeyX", 88, 1);
     await waitFor(async () => hasAccessibleNode(
       cdp,
@@ -436,6 +449,23 @@ async function activateAccessibleNode(cdp, role, name) {
   await cdp.send("Runtime.callFunctionOn", {
     objectId: object.objectId,
     functionDeclaration: "function() { this.click(); }"
+  });
+}
+
+async function setAccessibleInputValue(cdp, name, value) {
+  const { nodes } = await cdp.send("Accessibility.getFullAXTree");
+  const node = nodes.find((candidate) => (
+    candidate.role?.value === "textbox" && candidate.name?.value === name
+  ));
+  assert.ok(node?.backendDOMNodeId, `textbox named “${name}” should be accessible`);
+
+  const { object } = await cdp.send("DOM.resolveNode", {
+    backendNodeId: node.backendDOMNodeId
+  });
+  await cdp.send("Runtime.callFunctionOn", {
+    objectId: object.objectId,
+    functionDeclaration: "function(value) { this.value = value; }",
+    arguments: [{ value }]
   });
 }
 

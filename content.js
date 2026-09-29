@@ -4,6 +4,7 @@
     findCommandNameConflict,
     formatKeyBinding,
     fuzzyMatch,
+    isExternalUrl,
     keyBindingHasModifier,
     matchesKeyBinding,
     normalizeCommandsByScope,
@@ -443,7 +444,11 @@
     const actionMode = query.startsWith("/");
     const items = actionMode
       ? getActions()
-      : commands.map((command) => ({ ...command, type: "link" }));
+      : commands.map((command) => ({
+        ...command,
+        type: "link",
+        external: isExternalUrl(command.url, location)
+      }));
 
     filteredItems = items
       .map((item) => {
@@ -454,6 +459,13 @@
       .sort((left, right) => actionMode
         ? left.order - right.order
         : right.match.score - left.match.score || left.name.localeCompare(right.name));
+
+    if (!actionMode) {
+      filteredItems = [
+        ...filteredItems.filter((item) => !item.external),
+        ...filteredItems.filter((item) => item.external)
+      ];
+    }
 
     const preferredIndex = filteredItems.findIndex((item) => item.id === preferredItemId);
     selectedIndex = preferredIndex >= 0 ? preferredIndex : 0;
@@ -480,7 +492,21 @@
       return;
     }
 
+    const firstExternalIndex = actionMode
+      ? -1
+      : filteredItems.findIndex((item) => item.external);
+    const showExternalDivider = firstExternalIndex > 0;
+
     filteredItems.forEach((item, index) => {
+      if (showExternalDivider && index === firstExternalIndex) {
+        const divider = document.createElement("div");
+        divider.className = "command-divider";
+        divider.setAttribute("role", "separator");
+        divider.setAttribute("aria-label", "External commands");
+        divider.textContent = "External";
+        palette.commandList.append(divider);
+      }
+
       const row = document.createElement("div");
       const openButton = document.createElement("button");
       const label = document.createElement("span");

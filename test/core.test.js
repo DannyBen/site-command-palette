@@ -12,6 +12,7 @@ const {
   formatBackupDate,
   formatKeyBinding,
   fuzzyMatch,
+  isExternalUrl,
   keyBindingFromEvent,
   keyBindingHasModifier,
   matchesKeyBinding,
@@ -179,6 +180,21 @@ test("commandHint uses the destination hostname for cross-site commands", () => 
       "https://github.com/openai"
     ),
     "docs.github.com"
+  );
+});
+
+test("isExternalUrl compares destination hostnames and ignores www", () => {
+  assert.equal(
+    isExternalUrl("https://example.com/docs", "https://www.example.com/current"),
+    false
+  );
+  assert.equal(
+    isExternalUrl("https://docs.example.com/", "https://example.com/current"),
+    true
+  );
+  assert.equal(
+    isExternalUrl("https://github.com/", "https://example.com/current"),
+    true
   );
 });
 

@@ -147,6 +147,26 @@ button {
   padding: var(--small-gap);
 }
 
+.command-divider {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--small-gap);
+  padding: 10px 10px 5px;
+  color: var(--muted-text-color);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  text-transform: uppercase;
+
+  &::after {
+    height: 1px;
+    background: var(--border-color);
+    content: "";
+  }
+}
+
 .command {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
