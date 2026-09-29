@@ -85,17 +85,23 @@ button {
 }
 
 .overlay {
+  --palette-edge-gap: clamp(16px, 12vh, 72px);
+
   display: flex;
   align-items: flex-start;
   justify-content: center;
   width: 100%;
   height: 100%;
-  padding-top: 12vh;
+  padding-block: var(--palette-edge-gap);
   background: var(--overlay-background-color);
 }
 
 .palette {
   width: min(600px, 90vw);
+  max-height: min(
+    720px,
+    calc(100vh - var(--palette-edge-gap) - var(--palette-edge-gap))
+  );
   overflow: hidden;
   border: 1px solid var(--border-color);
   border-radius: var(--panel-radius);
@@ -118,6 +124,17 @@ button {
     margin-right: 4px;
     color: var(--shortcut-color);
     font: 600 12px/1.4 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+}
+
+.list-view {
+  display: flex;
+  flex-direction: column;
+  max-height: inherit;
+
+  header,
+  footer {
+    flex: none;
   }
 }
 
@@ -147,9 +164,29 @@ button {
 }
 
 .commands {
-  max-height: 390px;
+  min-height: 0;
   overflow-y: auto;
   padding: var(--small-gap);
+}
+
+.command-divider {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--small-gap);
+  padding: 10px 10px 5px;
+  color: var(--muted-text-color);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  text-transform: uppercase;
+
+  &::after {
+    height: 1px;
+    background: var(--border-color);
+    content: "";
+  }
 }
 
 .command {

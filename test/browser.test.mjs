@@ -79,6 +79,18 @@ test("palette keyboard, theme, and settings flows work in Chromium", { timeout: 
       await accessibleNodeDomProperty(cdp, "searchbox", "Search commands", "placeholder"),
       "Search Command palette browser test commands"
     );
+    const viewportHeight = await evaluate(cdp, "innerHeight");
+    const edgeGap = Math.min(72, Math.max(16, viewportHeight * 0.12));
+    assert.equal(
+      await accessibleNodeStyle(
+        cdp,
+        "dialog",
+        "Site command palette",
+        "maxHeight"
+      ),
+      `${Math.min(720, viewportHeight - edgeGap * 2)}px`,
+      "the palette height should respect equal viewport clearances and its desktop cap"
+    );
 
     await evaluate(cdp, "location.hash = 'inbox'");
     await waitFor(async () => !(await hasPalette(cdp)));
@@ -138,6 +150,7 @@ test("palette keyboard, theme, and settings flows work in Chromium", { timeout: 
     await cdp.send("Input.insertText", { text: "External" });
     await setAccessibleInputValue(cdp, "URL", "https://github.com/");
     await activateAccessibleNode(cdp, "button", "Save command");
+    await waitFor(async () => hasAccessibleNode(cdp, "separator", "External commands"));
     assert.match(
       await selectedOptionText(cdp),
       /Fixture › Zulu/,
@@ -158,6 +171,11 @@ test("palette keyboard, theme, and settings flows work in Chromium", { timeout: 
     );
 
     await press(cdp, "x", "KeyX", 88, 1);
+    await waitFor(async () => !(await hasAccessibleNode(
+      cdp,
+      "separator",
+      "External commands"
+    )));
     await waitFor(async () => (await selectedOptionText(cdp)).includes("Github › External"));
     await press(cdp, "x", "KeyX", 88, 1);
     await waitFor(async () => hasAccessibleNode(
