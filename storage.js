@@ -1,6 +1,7 @@
 (() => {
   const {
     COMMANDS_STORAGE_KEY,
+    SITES_STORAGE_KEY,
     SETTINGS_STORAGE_KEY,
     STORAGE_SCHEMA_VERSION_KEY,
     migrateStorage
@@ -10,6 +11,7 @@
     const stored = await chrome.storage.local.get([
       STORAGE_SCHEMA_VERSION_KEY,
       COMMANDS_STORAGE_KEY,
+      SITES_STORAGE_KEY,
       SETTINGS_STORAGE_KEY
     ]);
     const migration = migrateStorage(stored);
@@ -20,6 +22,7 @@
 
   globalThis.SiteCommandPaletteStorage = Object.freeze({
     COMMANDS_STORAGE_KEY,
+    SITES_STORAGE_KEY,
     SETTINGS_STORAGE_KEY,
     STORAGE_SCHEMA_VERSION_KEY,
     loadStorage

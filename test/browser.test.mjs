@@ -75,6 +75,11 @@ test("palette keyboard, theme, and settings flows work in Chromium", { timeout: 
 
     await openPalette(cdp);
 
+    assert.equal(
+      await accessibleNodeDomProperty(cdp, "searchbox", "Search commands", "placeholder"),
+      "Search Command palette browser test commands"
+    );
+
     await evaluate(cdp, "location.hash = 'inbox'");
     await waitFor(async () => !(await hasPalette(cdp)));
     await evaluate(cdp, "history.replaceState(null, '', '/')");
@@ -100,24 +105,60 @@ test("palette keyboard, theme, and settings flows work in Chromium", { timeout: 
     await press(cdp, "Escape", "Escape", 27);
 
     await press(cdp, "a", "KeyA", 65, 1);
+    await cdp.send("Input.insertText", { text: "Second" });
+    await activateAccessibleNode(cdp, "button", "Save command");
+    await waitFor(async () => (await selectedOptionText(cdp)).includes("Duplicate"));
+
+    await press(cdp, "e", "KeyE", 69, 1);
+    assert.equal(
+      await hasAccessibleNode(cdp, "StaticText", "Shared by 2 commands"),
+      true,
+      "the editor should disclose shared site names inline"
+    );
+    await setAccessibleInputValue(cdp, "Site", "Fixture");
+    await setAccessibleInputValue(cdp, "Page", "Zulu");
+    await activateAccessibleNode(cdp, "button", "Update command");
+    await waitFor(async () => (
+      await selectedOptionText(cdp)
+    ).includes("Fixture › Zulu"));
+    assert.equal(
+      await accessibleNodeDomProperty(cdp, "searchbox", "Search commands", "placeholder"),
+      "Search Fixture commands",
+      "the search placeholder should follow the shared site name"
+    );
+    await cdp.send("Input.insertText", { text: "Second" });
+    await waitFor(async () => (
+      await selectedOptionText(cdp)
+    ).includes("Fixture › Second"));
+    await press(cdp, "x", "KeyX", 88, 1);
+    await waitFor(async () => !(await hasAccessibleNode(cdp, "StaticText", "Fixture › Second")));
+    await press(cdp, "Escape", "Escape", 27);
+
+    await press(cdp, "a", "KeyA", 65, 1);
     await cdp.send("Input.insertText", { text: "External" });
     await setAccessibleInputValue(cdp, "URL", "https://github.com/");
     await activateAccessibleNode(cdp, "button", "Save command");
-    await waitFor(async () => hasAccessibleNode(cdp, "separator", "External commands"));
     assert.match(
       await selectedOptionText(cdp),
-      /Duplicate/,
+      /Fixture › Zulu/,
       "the command matching the current page should be selected"
     );
-    assert.equal(await accessibleNodeStyle(cdp, "button", "Remove Duplicate", "opacity"), "1");
-    assert.equal(await accessibleNodeStyle(cdp, "button", "Remove External", "opacity"), "0");
+    assert.equal(
+      await accessibleNodeStyle(
+        cdp,
+        "button",
+        "Remove Fixture › Zulu",
+        "opacity"
+      ),
+      "1"
+    );
+    assert.equal(
+      await accessibleNodeStyle(cdp, "button", "Remove Github › External", "opacity"),
+      "0"
+    );
 
     await press(cdp, "x", "KeyX", 88, 1);
-    await waitFor(async () => !(await hasAccessibleNode(
-      cdp,
-      "separator",
-      "External commands"
-    )));
+    await waitFor(async () => (await selectedOptionText(cdp)).includes("Github › External"));
     await press(cdp, "x", "KeyX", 88, 1);
     await waitFor(async () => hasAccessibleNode(
       cdp,
@@ -496,7 +537,10 @@ async function setAccessibleInputValue(cdp, name, value) {
   });
   await cdp.send("Runtime.callFunctionOn", {
     objectId: object.objectId,
-    functionDeclaration: "function(value) { this.value = value; }",
+    functionDeclaration: `function(value) {
+      this.value = value;
+      this.dispatchEvent(new Event('input', { bubbles: true }));
+    }`,
     arguments: [{ value }]
   });
 }
@@ -535,6 +579,25 @@ async function accessibleNodeStyle(cdp, role, name, property) {
   const { result } = await cdp.send("Runtime.callFunctionOn", {
     objectId: object.objectId,
     functionDeclaration: "function(property) { return getComputedStyle(this)[property]; }",
+    arguments: [{ value: property }],
+    returnByValue: true
+  });
+  return result.value;
+}
+
+async function accessibleNodeDomProperty(cdp, role, name, property) {
+  const { nodes } = await cdp.send("Accessibility.getFullAXTree");
+  const node = nodes.find((candidate) => (
+    candidate.role?.value === role && candidate.name?.value === name
+  ));
+  assert.ok(node?.backendDOMNodeId, `${role} named “${name}” should be accessible`);
+
+  const { object } = await cdp.send("DOM.resolveNode", {
+    backendNodeId: node.backendDOMNodeId
+  });
+  const { result } = await cdp.send("Runtime.callFunctionOn", {
+    objectId: object.objectId,
+    functionDeclaration: "function(property) { return this[property]; }",
     arguments: [{ value: property }],
     returnByValue: true
   });

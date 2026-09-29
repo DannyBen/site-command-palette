@@ -95,7 +95,7 @@ button {
 }
 
 .palette {
-  width: min(680px, 90vw);
+  width: min(600px, 90vw);
   overflow: hidden;
   border: 1px solid var(--border-color);
   border-radius: var(--panel-radius);
@@ -152,26 +152,6 @@ button {
   padding: var(--small-gap);
 }
 
-.command-divider {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
-  gap: var(--small-gap);
-  padding: 10px 10px 5px;
-  color: var(--muted-text-color);
-  font-size: 10px;
-  font-weight: 650;
-  letter-spacing: 0.08em;
-  line-height: 1;
-  text-transform: uppercase;
-
-  &::after {
-    height: 1px;
-    background: var(--border-color);
-    content: "";
-  }
-}
-
 .command {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -213,13 +193,17 @@ button {
 
 .open-command {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(120px, 45%);
+  grid-template-columns: minmax(0, 1fr);
   align-items: center;
   min-width: 0;
   gap: var(--normal-gap);
   padding: 7px 10px;
   background: transparent;
   text-align: left;
+
+  &.detailed {
+    grid-template-columns: minmax(0, 1fr) minmax(120px, 45%);
+  }
 
   .command-name,
   .command-detail {
@@ -303,12 +287,15 @@ button {
     font-size: 18px;
   }
 
-  > label {
+  label {
     display: grid;
     gap: 6px;
-    margin-top: 12px;
     color: var(--muted-text-color);
     font-weight: 600;
+  }
+
+  > label {
+    margin-top: 12px;
   }
 
   input {
@@ -325,6 +312,30 @@ button {
       box-shadow: 0 0 0 3px var(--focus-ring-color);
     }
   }
+}
+
+.command-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--small-gap);
+  margin-top: 12px;
+}
+
+.field-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--small-gap);
+  min-width: 0;
+}
+
+.site-usage {
+  overflow: hidden;
+  color: var(--footer-text-color);
+  font-size: 11px;
+  font-weight: 400;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .scope-field {

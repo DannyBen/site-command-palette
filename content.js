@@ -1,22 +1,26 @@
 (() => {
   const {
-    commandHint,
     findCommandNameConflict,
     formatKeyBinding,
     fuzzyMatch,
-    isExternalUrl,
     keyBindingHasModifier,
     matchesKeyBinding,
     normalizeCommandsByScope,
     normalizeScope,
     normalizeSettings,
+    normalizeSites,
     normalizeUrl,
     resolveTheme,
     resolveCommandsForLocation,
+    siteIdentity,
+    siteNameForUrl,
+    suggestPageName,
+    suggestSiteName,
     urlMatchesPage
   } = globalThis.SiteCommandPaletteCore;
   const {
     COMMANDS_STORAGE_KEY,
+    SITES_STORAGE_KEY,
     SETTINGS_STORAGE_KEY,
     loadStorage
   } = globalThis.SiteCommandPaletteStorage;
@@ -28,6 +32,7 @@
 
   let palette = null;
   let commandsByScope = {};
+  let sitesByHostname = {};
   let commands = [];
   let settings = normalizeSettings();
   let filteredItems = [];
@@ -35,6 +40,8 @@
   let opening = false;
   let editingCommandId = null;
   let editingCommandScope = null;
+  let formSiteHostname = null;
+  let siteNameEdited = false;
   const suppressedKeyups = new Set();
   const systemTheme = matchMedia("(prefers-color-scheme: dark)");
 
@@ -195,17 +202,27 @@
         <div class="list-view">
           <header>
             <input class="search" type="search" autocomplete="off" spellcheck="false"
-              aria-label="Search commands" placeholder="Search ${escapeHtml(location.hostname)} commands">
+              aria-label="Search commands" placeholder="Search commands">
           </header>
           <div class="commands" role="listbox" aria-label="Commands"></div>
           <footer></footer>
         </div>
         <form class="add-view" hidden>
           <h1 class="form-title">Add command</h1>
-          <label>
-            Name
-            <input class="name" name="name" required autocomplete="off">
-          </label>
+          <div class="command-fields">
+            <label>
+              <span class="field-heading">
+                <span>Site</span>
+                <small class="site-usage" id="site-usage"></small>
+              </span>
+              <input class="site-name" name="site-name" required autocomplete="off"
+                aria-label="Site" aria-describedby="site-usage">
+            </label>
+            <label>
+              <span class="field-heading">Page</span>
+              <input class="page-name" name="page-name" required autocomplete="off" aria-label="Page">
+            </label>
+          </div>
           <label>
             URL
             <input class="url" name="url" required type="url" autocomplete="off">
@@ -245,7 +262,9 @@
       search: overlay.querySelector(".search"),
       commandList: overlay.querySelector(".commands"),
       footer: overlay.querySelector("footer"),
-      name: overlay.querySelector(".name"),
+      siteName: overlay.querySelector(".site-name"),
+      pageName: overlay.querySelector(".page-name"),
+      siteUsage: overlay.querySelector(".site-usage"),
       url: overlay.querySelector(".url"),
       scopePattern: overlay.querySelector(".scope-pattern"),
       scopePresets: overlay.querySelectorAll("[data-scope-preset]"),
@@ -256,6 +275,8 @@
 
     overlay.addEventListener("click", handleOverlayClick);
     palette.search.addEventListener("input", filterAndRender);
+    palette.siteName.addEventListener("input", () => { siteNameEdited = true; });
+    palette.url.addEventListener("input", updateFormSiteFromUrl);
     palette.scopePattern.addEventListener("input", updateScopePresetState);
     overlay.querySelector(".scope-actions").addEventListener("click", applyScopePreset);
     overlay.querySelector(".cancel-button").addEventListener("click", showCommandList);
@@ -263,10 +284,12 @@
 
     const stored = await loadStorage();
     commandsByScope = stored[COMMANDS_STORAGE_KEY];
+    sitesByHostname = stored[SITES_STORAGE_KEY];
     refreshCommands();
     settings = stored[SETTINGS_STORAGE_KEY];
 
     if (!palette) return;
+    updateSearchPlaceholder();
     applyTheme();
     filterAndRender();
     palette.search.focus();
@@ -306,12 +329,16 @@
     palette.addView.hidden = false;
     palette.formTitle.textContent = "Add command";
     palette.saveButton.textContent = "Save command";
-    palette.name.value = document.title.trim() || location.hostname;
     palette.url.value = location.href;
+    formSiteHostname = siteIdentity(location.href);
+    palette.siteName.value = siteNameForUrl(sitesByHostname, location.href, document.title);
+    palette.pageName.value = suggestPageName(location.href);
     palette.scopePattern.value = location.hostname;
+    siteNameEdited = false;
+    updateSiteUsage();
     updateScopePresetState();
     setError("");
-    palette.name.select();
+    palette.pageName.select();
   }
 
   function showEditForm(command) {
@@ -322,12 +349,16 @@
     palette.addView.hidden = false;
     palette.formTitle.textContent = "Edit command";
     palette.saveButton.textContent = "Update command";
-    palette.name.value = command.name;
     palette.url.value = command.url;
+    formSiteHostname = siteIdentity(command.url);
+    palette.siteName.value = siteNameForUrl(sitesByHostname, command.url);
+    palette.pageName.value = command.page;
     palette.scopePattern.value = command.scope;
+    siteNameEdited = false;
+    updateSiteUsage();
     updateScopePresetState();
     setError("");
-    palette.name.select();
+    palette.pageName.select();
   }
 
   function showCommandList() {
@@ -336,7 +367,15 @@
     palette.mode = "list";
     palette.addView.hidden = true;
     palette.listView.hidden = false;
+    updateSearchPlaceholder();
     palette.search.focus();
+  }
+
+  function updateSearchPlaceholder() {
+    if (!palette) return;
+
+    const siteName = siteNameForUrl(sitesByHostname, location, document.title);
+    palette.search.placeholder = `Search ${siteName} commands`;
   }
 
   function applyScopePreset(event) {
@@ -369,16 +408,45 @@
     return normalizeScope(palette.scopePattern.value);
   }
 
+  function updateFormSiteFromUrl() {
+    const hostname = siteIdentity(palette.url.value);
+    if (!hostname || hostname === formSiteHostname) return;
+
+    formSiteHostname = hostname;
+    if (!siteNameEdited) {
+      palette.siteName.value = siteNameForUrl(sitesByHostname, palette.url.value);
+    }
+    updateSiteUsage();
+  }
+
+  function updateSiteUsage() {
+    const count = Object.values(commandsByScope)
+      .flat()
+      .filter((command) => siteIdentity(command.url) === formSiteHostname)
+      .length;
+    palette.siteUsage.textContent = count > 0
+      ? `Shared by ${count} ${count === 1 ? "command" : "commands"}`
+      : "New site";
+  }
+
   async function saveCommand(event) {
     event.preventDefault();
 
-    const name = palette.name.value.trim();
+    const editedCommandId = editingCommandId;
+    const siteName = palette.siteName.value.trim();
+    const page = palette.pageName.value.trim();
     const url = normalizeUrl(palette.url.value);
     const scope = selectedScope();
 
-    if (!name) {
-      setError("Enter a command name.");
-      palette.name.focus();
+    if (!siteName) {
+      setError("Enter a site name.");
+      palette.siteName.focus();
+      return;
+    }
+
+    if (!page) {
+      setError("Enter a page name.");
+      palette.pageName.focus();
       return;
     }
 
@@ -397,17 +465,21 @@
     const conflict = findCommandNameConflict(
       commandsByScope,
       scope,
-      name,
+      page,
+      url,
       editingCommandId
     );
     if (conflict) {
       setError(conflict.url === url
         ? "This command already exists in this scope."
-        : `A command named “${conflict.name}” already exists in this scope. Edit it instead.`);
-      palette.name.focus();
-      palette.name.select();
+        : `A “${page}” command for this site already exists in this scope. Edit it instead.`);
+      palette.pageName.focus();
+      palette.pageName.select();
       return;
     }
+
+    const hostname = siteIdentity(url);
+    sitesByHostname[hostname] = { name: siteName };
 
     if (editingCommandId) {
       const previousCommands = commandsByScope[editingCommandScope] ?? [];
@@ -419,19 +491,20 @@
       }
       commandsByScope[scope] = [
         ...(commandsByScope[scope] ?? []),
-        { id: editingCommandId, name, url }
+        { id: editingCommandId, page, url }
       ];
     } else {
       commandsByScope[scope] = [
         ...(commandsByScope[scope] ?? []),
-        { id: crypto.randomUUID(), name, url }
+        { id: crypto.randomUUID(), page, url }
       ];
     }
-    await storeCommands();
+    pruneUnusedSites();
+    await storeCommandData();
     refreshCommands();
     palette.search.value = "";
     showCommandList();
-    filterAndRender();
+    filterAndRender(editedCommandId);
   }
 
   async function removeCommand(id) {
@@ -441,7 +514,8 @@
     commandsByScope[command.scope] = (commandsByScope[command.scope] ?? [])
       .filter((candidate) => candidate.id !== id);
     if (commandsByScope[command.scope].length === 0) delete commandsByScope[command.scope];
-    await storeCommands();
+    pruneUnusedSites();
+    await storeCommandData();
     refreshCommands();
     filterAndRender();
   }
@@ -456,7 +530,7 @@
       : commands.map((command) => ({
         ...command,
         type: "link",
-        external: isExternalUrl(command.url, location)
+        name: `${siteNameForUrl(sitesByHostname, command.url)} › ${command.page}`
       }));
 
     filteredItems = items
@@ -468,13 +542,6 @@
       .sort((left, right) => actionMode
         ? left.order - right.order
         : right.match.score - left.match.score || left.name.localeCompare(right.name));
-
-    if (!actionMode) {
-      filteredItems = [
-        ...filteredItems.filter((item) => !item.external),
-        ...filteredItems.filter((item) => item.external)
-      ];
-    }
 
     const preferredIndex = filteredItems.findIndex((item) => item.id === preferredItemId);
     const currentPageIndex = !actionMode && !query
@@ -506,25 +573,10 @@
       return;
     }
 
-    const firstExternalIndex = actionMode
-      ? -1
-      : filteredItems.findIndex((item) => item.external);
-    const showExternalDivider = firstExternalIndex > 0;
-
     filteredItems.forEach((item, index) => {
-      if (showExternalDivider && index === firstExternalIndex) {
-        const divider = document.createElement("div");
-        divider.className = "command-divider";
-        divider.setAttribute("role", "separator");
-        divider.setAttribute("aria-label", "External commands");
-        divider.textContent = "External";
-        palette.commandList.append(divider);
-      }
-
       const row = document.createElement("div");
       const openButton = document.createElement("button");
       const label = document.createElement("span");
-      const address = document.createElement("span");
 
       row.className = "command";
       row.dataset.itemIndex = String(index);
@@ -536,12 +588,18 @@
       openButton.dataset.activateItem = String(index);
       label.className = "command-name";
       appendHighlightedText(label, item.name, item.match.indices);
-      address.className = "command-detail";
-      address.textContent = item.type === "link"
-        ? commandHint(item.url, item.scope, location)
-        : item.detail;
-      address.title = item.type === "link" ? item.url : item.detail;
-      openButton.append(label, address);
+      openButton.append(label);
+
+      if (item.type === "link") {
+        openButton.title = item.url;
+      } else {
+        const detail = document.createElement("span");
+        detail.className = "command-detail";
+        detail.textContent = item.detail;
+        detail.title = item.detail;
+        openButton.classList.add("detailed");
+        openButton.append(detail);
+      }
 
       row.append(openButton);
 
@@ -699,6 +757,12 @@
       if (palette?.mode === "list") filterAndRender();
     }
 
+    if (changes[SITES_STORAGE_KEY]) {
+      sitesByHostname = normalizeSites(changes[SITES_STORAGE_KEY].newValue);
+      updateSearchPlaceholder();
+      if (palette?.mode === "list") filterAndRender();
+    }
+
     if (!changes[SETTINGS_STORAGE_KEY]) return;
 
     settings = normalizeSettings(changes[SETTINGS_STORAGE_KEY].newValue);
@@ -716,8 +780,22 @@
     commands = resolveCommandsForLocation(commandsByScope, location);
   }
 
-  async function storeCommands() {
-    await chrome.storage.local.set({ [COMMANDS_STORAGE_KEY]: commandsByScope });
+  function pruneUnusedSites() {
+    const usedHostnames = new Set(Object.values(commandsByScope)
+      .flat()
+      .map((command) => siteIdentity(command.url))
+      .filter(Boolean));
+
+    for (const hostname of Object.keys(sitesByHostname)) {
+      if (!usedHostnames.has(hostname)) delete sitesByHostname[hostname];
+    }
+  }
+
+  async function storeCommandData() {
+    await chrome.storage.local.set({
+      [COMMANDS_STORAGE_KEY]: commandsByScope,
+      [SITES_STORAGE_KEY]: sitesByHostname
+    });
   }
 
   function appendHighlightedText(element, value, indices) {

@@ -1,7 +1,8 @@
 (() => {
-  const STORAGE_SCHEMA_VERSION = 2;
+  const STORAGE_SCHEMA_VERSION = 3;
   const STORAGE_SCHEMA_VERSION_KEY = "storageSchemaVersion";
   const COMMANDS_STORAGE_KEY = "commandsByHostname";
+  const SITES_STORAGE_KEY = "sitesByHostname";
   const SETTINGS_STORAGE_KEY = "settings";
   const DEFAULT_KEY_BINDINGS = Object.freeze({
     togglePrimary: "Backquote",
@@ -29,6 +30,60 @@
     } catch {
       return null;
     }
+  }
+
+  function siteIdentity(value) {
+    try {
+      const url = new URL(value?.href ?? value);
+      if (!["http:", "https:"].includes(url.protocol)) return null;
+      return url.hostname.toLocaleLowerCase().replace(/^www\./, "");
+    } catch {
+      return null;
+    }
+  }
+
+  function suggestSiteName(urlValue, title = "") {
+    const titleParts = String(title)
+      .split(/\s+(?:[-|·—–])\s+/)
+      .map((part) => part.trim())
+      .filter(Boolean);
+    const titleCandidate = titleParts.at(-1);
+    if (titleCandidate && titleCandidate.length <= 48 && !titleCandidate.includes("@")) {
+      return titleCandidate;
+    }
+
+    const hostname = siteIdentity(urlValue);
+    return hostname ? humanizeRoutePart(hostname.split(".")[0]) : "Site";
+  }
+
+  function suggestPageName(urlValue) {
+    try {
+      const url = new URL(urlValue);
+      const hashParts = url.hash
+        .replace(/^#\/?/, "")
+        .split(/[/?&=]+/)
+        .filter(Boolean);
+      const pathParts = url.pathname.split("/").filter(Boolean);
+      const routePart = hashParts.findLast((part) => !/^\d+$/.test(part)) ??
+        pathParts.findLast((part) => !/^\d+$/.test(part));
+      return routePart ? humanizeRoutePart(routePart) : "Home";
+    } catch {
+      return "Page";
+    }
+  }
+
+  function humanizeRoutePart(value) {
+    let decoded = value;
+    try {
+      decoded = decodeURIComponent(value);
+    } catch {
+      // Keep the encoded value when it cannot be decoded.
+    }
+
+    return decoded
+      .replace(/\.[a-z0-9]+$/i, "")
+      .replace(/[-_+]+/g, " ")
+      .replace(/\b\p{L}/gu, (character) => character.toLocaleUpperCase());
   }
 
   function normalizeScope(value) {
@@ -113,39 +168,6 @@
     if (needleIndex !== needle.length) return null;
     if (haystack.startsWith(needle)) score += 8;
     return { score: score - haystack.length * 0.01, indices };
-  }
-
-  function commandHint(urlValue, scopeValue, locationValue) {
-    const destination = new URL(urlValue);
-    const location = new URL(locationValue.href ?? locationValue);
-    const scope = normalizeScope(scopeValue);
-    const scopeHostname = scope?.split("/", 1)[0];
-    const hostname = destination.hostname.replace(/^www\./, "");
-
-    if (
-      scope === "*" ||
-      scopeHostname?.includes("*") ||
-      destination.hostname !== location.hostname
-    ) {
-      return hostname;
-    }
-
-    const route = `${destination.pathname === "/" ? "" : destination.pathname}${destination.hash}`;
-    return route ? middleEllipsis(route, 42) : hostname;
-  }
-
-  function isExternalUrl(urlValue, locationValue) {
-    try {
-      const destination = new URL(urlValue);
-      const location = new URL(locationValue.href ?? locationValue);
-      return siteHostname(destination) !== siteHostname(location);
-    } catch {
-      return false;
-    }
-  }
-
-  function siteHostname(url) {
-    return url.hostname.replace(/^www\./, "");
   }
 
   function urlMatchesPage(urlValue, locationValue) {
@@ -318,19 +340,44 @@
     if (!value || typeof value !== "object") return null;
 
     const id = typeof value.id === "string" ? value.id.trim() : "";
-    const name = typeof value.name === "string" ? value.name.trim() : "";
+    const pageValue = typeof value.page === "string" ? value.page : value.name;
+    const page = typeof pageValue === "string" ? pageValue.trim() : "";
     const url = typeof value.url === "string" ? normalizeUrl(value.url) : null;
-    if (!id || !name || !url) return null;
+    if (!id || !page || !url) return null;
 
-    return { id, name, url };
+    return { id, page, url };
   }
 
-  function findCommandNameConflict(commandsByScope, scope, name, excludedId = null) {
-    const nameKey = commandNameKey(name);
-    if (!nameKey) return null;
+  function normalizeSites(value) {
+    const storedSites = value && typeof value === "object" && !Array.isArray(value)
+      ? value
+      : {};
+    const sites = {};
+
+    for (const [storedHostname, storedSite] of Object.entries(storedSites)) {
+      const hostname = siteIdentity(`https://${storedHostname}`);
+      const nameValue = typeof storedSite === "string" ? storedSite : storedSite?.name;
+      const name = typeof nameValue === "string" ? nameValue.trim() : "";
+      if (hostname && name) sites[hostname] = { name };
+    }
+
+    return sites;
+  }
+
+  function siteNameForUrl(sites, urlValue, title = "") {
+    const hostname = siteIdentity(urlValue);
+    return sites[hostname]?.name ?? suggestSiteName(urlValue, title);
+  }
+
+  function findCommandNameConflict(commandsByScope, scope, page, url, excludedId = null) {
+    const pageKey = commandNameKey(page);
+    const hostname = siteIdentity(url);
+    if (!pageKey || !hostname) return null;
 
     return (commandsByScope[scope] ?? []).find((command) => (
-      command.id !== excludedId && commandNameKey(command.name) === nameKey
+      command.id !== excludedId &&
+      siteIdentity(command.url) === hostname &&
+      commandNameKey(command.page) === pageKey
     )) ?? null;
   }
 
@@ -345,7 +392,7 @@
     const bestSpecificityByName = new Map();
 
     for (const command of matchingCommands) {
-      const nameKey = commandNameKey(command.name);
+      const nameKey = `${siteIdentity(command.url)}\0${commandNameKey(command.page)}`;
       const best = bestSpecificityByName.get(nameKey);
       if (!best || compareSpecificity(command.specificity, best) > 0) {
         bestSpecificityByName.set(nameKey, command.specificity);
@@ -355,7 +402,7 @@
     return matchingCommands
       .filter((command) => (
         compareSpecificity(command.specificity, bestSpecificityByName.get(
-          commandNameKey(command.name)
+          `${siteIdentity(command.url)}\0${commandNameKey(command.page)}`
         )) === 0
       ))
       .map(({ specificity, ...command }) => command);
@@ -388,12 +435,24 @@
       throw new Error(`Unsupported storage schema version: ${storedVersion}`);
     }
 
+    const commandsByScope = normalizeCommandsByScope(stored[COMMANDS_STORAGE_KEY]);
+    const sites = normalizeSites(stored[SITES_STORAGE_KEY]);
+    for (const commands of Object.values(commandsByScope)) {
+      for (const command of commands) {
+        const hostname = siteIdentity(command.url);
+        if (hostname && !sites[hostname]) {
+          sites[hostname] = { name: suggestSiteName(command.url) };
+        }
+      }
+    }
+
     return {
       migrated: storedVersion < STORAGE_SCHEMA_VERSION,
       previousVersion: storedVersion,
       data: {
         [STORAGE_SCHEMA_VERSION_KEY]: STORAGE_SCHEMA_VERSION,
-        [COMMANDS_STORAGE_KEY]: normalizeCommandsByScope(stored[COMMANDS_STORAGE_KEY]),
+        [COMMANDS_STORAGE_KEY]: commandsByScope,
+        [SITES_STORAGE_KEY]: sites,
         [SETTINGS_STORAGE_KEY]: normalizeSettings(stored[SETTINGS_STORAGE_KEY])
       }
     };
@@ -409,15 +468,14 @@
     COMMANDS_STORAGE_KEY,
     DEFAULT_KEY_BINDINGS,
     SETTINGS_STORAGE_KEY,
+    SITES_STORAGE_KEY,
     STORAGE_SCHEMA_VERSION,
     STORAGE_SCHEMA_VERSION_KEY,
-    commandHint,
     commandNameKey,
     findCommandNameConflict,
     formatBackupDate,
     formatKeyBinding,
     fuzzyMatch,
-    isExternalUrl,
     keyBindingFromEvent,
     keyBindingHasModifier,
     matchesKeyBinding,
@@ -427,10 +485,15 @@
     normalizeKeyBinding,
     normalizeKeyBindings,
     normalizeSettings,
+    normalizeSites,
     normalizeScope,
     normalizeUrl,
     resolveTheme,
     resolveCommandsForLocation,
+    siteIdentity,
+    siteNameForUrl,
+    suggestPageName,
+    suggestSiteName,
     scopeMatches,
     urlMatchesPage
   });

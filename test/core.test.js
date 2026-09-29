@@ -4,15 +4,14 @@ const assert = require("node:assert/strict");
 const {
   COMMANDS_STORAGE_KEY,
   DEFAULT_KEY_BINDINGS,
+  SITES_STORAGE_KEY,
   SETTINGS_STORAGE_KEY,
   STORAGE_SCHEMA_VERSION_KEY,
-  commandHint,
   commandNameKey,
   findCommandNameConflict,
   formatBackupDate,
   formatKeyBinding,
   fuzzyMatch,
-  isExternalUrl,
   keyBindingFromEvent,
   keyBindingHasModifier,
   matchesKeyBinding,
@@ -21,10 +20,15 @@ const {
   normalizeCommandsByScope,
   normalizeScope,
   normalizeSettings,
+  normalizeSites,
   normalizeUrl,
   resolveCommandsForLocation,
   resolveTheme,
   scopeMatches,
+  siteIdentity,
+  siteNameForUrl,
+  suggestPageName,
+  suggestSiteName,
   urlMatchesPage
 } = require("../core.js");
 
@@ -62,9 +66,9 @@ test("normalizeCommandsByScope preserves exact, global, and wildcard collections
     "*.example.com": [{ id: "two", name: "Two", url: "https://docs.example.com/two" }],
     "*": [{ id: "three", name: "Three", url: "https://elsewhere.test/three" }]
   }), {
-    "example.com": [{ id: "one", name: "One", url: "https://example.com/one" }],
-    "*.example.com": [{ id: "two", name: "Two", url: "https://docs.example.com/two" }],
-    "*": [{ id: "three", name: "Three", url: "https://elsewhere.test/three" }]
+    "example.com": [{ id: "one", page: "One", url: "https://example.com/one" }],
+    "*.example.com": [{ id: "two", page: "Two", url: "https://docs.example.com/two" }],
+    "*": [{ id: "three", page: "Three", url: "https://elsewhere.test/three" }]
   });
 });
 
@@ -77,9 +81,9 @@ test("normalizeCommandsByScope repairs duplicate command IDs", () => {
     ]
   }), {
     "example.com": [
-      { id: "duplicate", name: "One", url: "https://example.com/one" },
-      { id: "duplicate-3", name: "Two", url: "https://example.com/two" },
-      { id: "duplicate-2", name: "Three", url: "https://example.com/three" }
+      { id: "duplicate", page: "One", url: "https://example.com/one" },
+      { id: "duplicate-3", page: "Two", url: "https://example.com/two" },
+      { id: "duplicate-2", page: "Three", url: "https://example.com/three" }
     ]
   });
 });
@@ -89,35 +93,58 @@ test("command names compare without case or repeated whitespace", () => {
   assert.equal(commandNameKey(null), "");
 });
 
-test("findCommandNameConflict checks one scope and can exclude an edited command", () => {
+test("findCommandNameConflict checks page names within one destination site and scope", () => {
   const commandsByScope = {
     "example.com": [
-      { id: "one", name: "GitHub Issues", url: "https://github.com/issues" }
+      { id: "one", page: "Issues", url: "https://github.com/issues" },
+      { id: "two", page: "Issues", url: "https://gitlab.com/issues" }
     ],
     "*": [
-      { id: "two", name: "GitHub Issues", url: "https://github.com/" }
+      { id: "three", page: "Issues", url: "https://github.com/" }
     ]
   };
 
   assert.equal(
-    findCommandNameConflict(commandsByScope, "example.com", "github   issues").id,
+    findCommandNameConflict(
+      commandsByScope,
+      "example.com",
+      " issues ",
+      "https://github.com/pulls"
+    ).id,
     "one"
   );
-  assert.equal(findCommandNameConflict(commandsByScope, "example.com", "GitHub Issues", "one"), null);
-  assert.equal(findCommandNameConflict(commandsByScope, "other.example", "GitHub Issues"), null);
+  assert.equal(
+    findCommandNameConflict(
+      commandsByScope,
+      "example.com",
+      "Issues",
+      "https://github.com/issues",
+      "one"
+    ),
+    null
+  );
+  assert.equal(
+    findCommandNameConflict(
+      commandsByScope,
+      "other.example",
+      "Issues",
+      "https://github.com/issues"
+    ),
+    null
+  );
 });
 
 test("resolveCommandsForLocation applies the most specific named override", () => {
   const commands = resolveCommandsForLocation({
     "*": [
-      { id: "global", name: "GitHub", url: "https://github.com/" },
-      { id: "alias", name: "Source hosting", url: "https://github.com/" }
+      { id: "global", page: "Home", url: "https://github.com/" },
+      { id: "alias", page: "Source hosting", url: "https://github.com/" }
     ],
     "github.com": [
-      { id: "site", name: "github", url: "https://github.com/openai" }
+      { id: "site", page: "Home", url: "https://github.com/openai" }
     ],
     "github.com/openai/*": [
-      { id: "path", name: "GitHub", url: "https://github.com/openai/issues" }
+      { id: "path", page: "Home", url: "https://github.com/openai/issues" }
     ]
   }, "https://github.com/openai/project");
 
@@ -126,8 +153,8 @@ test("resolveCommandsForLocation applies the most specific named override", () =
 
 test("resolveCommandsForLocation preserves ambiguous equal-specificity commands", () => {
   const commands = resolveCommandsForLocation({
-    "*hub.com": [{ id: "one", name: "GitHub", url: "https://github.com/one" }],
-    "github.*": [{ id: "two", name: "github", url: "https://github.com/two" }]
+    "*hub.com": [{ id: "one", page: "Home", url: "https://github.com/one" }],
+    "github.*": [{ id: "two", page: "home", url: "https://github.com/two" }]
   }, "https://github.com/");
 
   assert.deepEqual(commands.map(({ id }) => id), ["one", "two"]);
@@ -149,54 +176,33 @@ test("middleEllipsis preserves both ends at the requested length", () => {
   assert.match(compact, /^abcdef…vwxyz$/);
 });
 
-test("commandHint uses hostnames for global and wildcard commands", () => {
-  const location = "https://example.com/current";
-
-  assert.equal(commandHint("https://github.com/", "*", location), "github.com");
-  assert.equal(
-    commandHint("https://www.github.com/openai", "*.github.com", location),
-    "github.com"
-  );
+test("site identities use normalized destination hostnames", () => {
+  assert.equal(siteIdentity("https://www.github.com/openai"), "github.com");
+  assert.equal(siteIdentity("https://mail.google.com/#inbox"), "mail.google.com");
+  assert.equal(siteIdentity("javascript:alert(1)"), null);
 });
 
-test("commandHint uses paths and fragments for same-site commands", () => {
-  const location = "https://github.com/openai/project";
+test("site and page names are suggested from titles and SPA routes", () => {
+  const gmail = "https://mail.google.com/mail/u/0/#inbox";
 
-  assert.equal(
-    commandHint("https://github.com/issues?state=open#mine", "github.com", location),
-    "/issues#mine"
-  );
-  assert.equal(commandHint("https://github.com/", "github.com", location), "github.com");
-  assert.equal(commandHint("https://github.com/#inbox", "github.com", location), "#inbox");
-  assert.equal(
-    commandHint("https://github.com/openai/project", "github.com/openai/*", location),
-    "/openai/project"
-  );
+  assert.equal(suggestSiteName(gmail, "Inbox - person@gmail.com - Gmail"), "Gmail");
+  assert.equal(suggestSiteName("https://github.com/"), "Github");
+  assert.equal(suggestPageName(gmail), "Inbox");
+  assert.equal(suggestPageName("https://github.com/openai/codex"), "Codex");
+  assert.equal(suggestPageName("https://github.com/"), "Home");
 });
 
-test("commandHint uses the destination hostname for cross-site commands", () => {
-  assert.equal(
-    commandHint(
-      "https://docs.github.com/en/get-started",
-      "github.com",
-      "https://github.com/openai"
-    ),
-    "docs.github.com"
-  );
-});
+test("site names are shared by destination identity", () => {
+  const sites = normalizeSites({
+    "MAIL.GOOGLE.COM": { name: " Gmail " },
+    "invalid host": { name: "Invalid" },
+    "empty.example": { name: "" }
+  });
 
-test("isExternalUrl compares destination hostnames and ignores www", () => {
+  assert.deepEqual(sites, { "mail.google.com": { name: "Gmail" } });
   assert.equal(
-    isExternalUrl("https://example.com/docs", "https://www.example.com/current"),
-    false
-  );
-  assert.equal(
-    isExternalUrl("https://docs.example.com/", "https://example.com/current"),
-    true
-  );
-  assert.equal(
-    isExternalUrl("https://github.com/", "https://example.com/current"),
-    true
+    siteNameForUrl(sites, "https://mail.google.com/mail/u/0/#spam"),
+    "Gmail"
   );
 });
 
@@ -308,11 +314,14 @@ test("migrateStorage upgrades legacy data and normalizes saved commands", () => 
 
   assert.equal(migration.migrated, true);
   assert.equal(migration.previousVersion, 0);
-  assert.equal(migration.data[STORAGE_SCHEMA_VERSION_KEY], 2);
+  assert.equal(migration.data[STORAGE_SCHEMA_VERSION_KEY], 3);
   assert.deepEqual(migration.data[COMMANDS_STORAGE_KEY], {
     "example.com": [
-      { id: "command-1", name: "Documentation", url: "https://example.com/docs" }
+      { id: "command-1", page: "Documentation", url: "https://example.com/docs" }
     ]
+  });
+  assert.deepEqual(migration.data[SITES_STORAGE_KEY], {
+    "example.com": { name: "Example" }
   });
   assert.deepEqual(migration.data[SETTINGS_STORAGE_KEY], {
     version: 1,
@@ -329,17 +338,18 @@ test("migrateStorage leaves the current schema current and rejects future data",
     settings: {}
   });
   const current = migrateStorage({
-    storageSchemaVersion: 2,
+    storageSchemaVersion: 3,
     commandsByHostname: {},
+    sitesByHostname: {},
     settings: { theme: "light", siteThemes: {} }
   });
 
   assert.equal(previous.migrated, true);
   assert.equal(previous.previousVersion, 1);
-  assert.equal(previous.data.storageSchemaVersion, 2);
+  assert.equal(previous.data.storageSchemaVersion, 3);
   assert.equal(current.migrated, false);
   assert.throws(
-    () => migrateStorage({ storageSchemaVersion: 3 }),
-    /Unsupported storage schema version: 3/
+    () => migrateStorage({ storageSchemaVersion: 4 }),
+    /Unsupported storage schema version: 4/
   );
 });

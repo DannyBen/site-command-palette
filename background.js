@@ -2,6 +2,7 @@ importScripts("core.js", "storage.js", "backup.js");
 
 const backedUpStorageKeys = new Set([
   globalThis.SiteCommandPaletteCore.COMMANDS_STORAGE_KEY,
+  globalThis.SiteCommandPaletteCore.SITES_STORAGE_KEY,
   globalThis.SiteCommandPaletteCore.SETTINGS_STORAGE_KEY,
   globalThis.SiteCommandPaletteCore.STORAGE_SCHEMA_VERSION_KEY
 ]);
