@@ -9,7 +9,7 @@ yet published in the Chrome Web Store.
 
 ## Feature Highlights
 
-- Site-specific commands: links saved on one hostname stay scoped to that site.
+- Flexible command scopes: exact sites by default, with global and wildcard patterns when needed.
 - Fuzzy search with bold character highlighting and keyboard result selection.
 - Backtick opens the palette; Alt+Backtick also works from editable fields.
 - Arrow keys select a command, Enter activates it, and Escape clears or closes.

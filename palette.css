@@ -248,7 +248,7 @@ button {
     font-size: 18px;
   }
 
-  label {
+  > label {
     display: grid;
     gap: 6px;
     margin-top: 12px;
@@ -268,6 +268,49 @@ button {
     &:focus {
       border-color: var(--accent-color);
       box-shadow: 0 0 0 3px var(--focus-ring-color);
+    }
+  }
+}
+
+.scope-field {
+  margin-top: 12px;
+}
+
+.scope-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--normal-gap);
+  margin-bottom: 6px;
+
+  > label {
+    color: var(--muted-text-color);
+    font-weight: 600;
+  }
+}
+
+.scope-actions {
+  display: flex;
+  gap: 12px;
+
+  button {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--muted-text-color);
+    font-weight: 400;
+
+    &[aria-pressed="true"] {
+      color: var(--text-color);
+      font-weight: 600;
+    }
+
+    &:hover,
+    &:focus-visible {
+      outline: none;
+      color: var(--text-color);
+      text-decoration: underline;
+      text-underline-offset: 2px;
     }
   }
 }

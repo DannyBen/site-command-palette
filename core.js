@@ -31,6 +31,58 @@
     }
   }
 
+  function normalizeScope(value) {
+    if (typeof value !== "string") return null;
+
+    let scope = value.trim().toLocaleLowerCase();
+    scope = scope.replace(/^https?:\/\//, "").replace(/^\/\//, "");
+    scope = scope.split(/[?#]/, 1)[0];
+    if (!scope || /\s/.test(scope)) return null;
+
+    const slashIndex = scope.indexOf("/");
+    const hostname = slashIndex === -1 ? scope : scope.slice(0, slashIndex);
+    let pathname = slashIndex === -1 ? "" : scope.slice(slashIndex);
+
+    if (!hostname || !/^[a-z0-9*.-]+$/.test(hostname)) return null;
+    if (hostname !== "*" && (hostname.startsWith(".") || hostname.endsWith("."))) return null;
+    if (pathname === "/") pathname = "";
+
+    return `${hostname}${pathname}`;
+  }
+
+  function scopeMatches(scopeValue, locationValue) {
+    const scope = normalizeScope(scopeValue);
+    if (!scope) return false;
+
+    let hostname;
+    let pathname;
+
+    try {
+      const location = typeof locationValue === "string" && !locationValue.includes("://")
+        ? new URL(`https://${locationValue}`)
+        : new URL(locationValue.href ?? locationValue);
+      hostname = location.hostname.toLocaleLowerCase();
+      pathname = location.pathname;
+    } catch {
+      return false;
+    }
+
+    const slashIndex = scope.indexOf("/");
+    const hostnamePattern = slashIndex === -1 ? scope : scope.slice(0, slashIndex);
+    const pathnamePattern = slashIndex === -1 ? null : scope.slice(slashIndex);
+
+    return globMatches(hostnamePattern, hostname) &&
+      (pathnamePattern === null || globMatches(pathnamePattern, pathname));
+  }
+
+  function globMatches(pattern, value) {
+    const expression = pattern
+      .split("*")
+      .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+      .join(".*");
+    return new RegExp(`^${expression}$`).test(value);
+  }
+
   function fuzzyMatch(query, candidate) {
     if (!query) return { score: 0, indices: [] };
 
@@ -182,21 +234,23 @@
     };
   }
 
-  function normalizeCommandsByHostname(value) {
+  function normalizeCommandsByScope(value) {
     const storedCommands = value && typeof value === "object" && !Array.isArray(value)
       ? value
       : {};
-    const commandsByHostname = {};
+    const commandsByScope = {};
 
-    for (const [hostname, commands] of Object.entries(storedCommands)) {
-      if (!hostname || !Array.isArray(commands)) continue;
+    for (const [storedScope, commands] of Object.entries(storedCommands)) {
+      const scope = normalizeScope(storedScope);
+      if (!scope || !Array.isArray(commands)) continue;
 
-      commandsByHostname[hostname] = commands
+      const normalizedCommands = commands
         .map(normalizeCommand)
         .filter(Boolean);
+      commandsByScope[scope] = [...(commandsByScope[scope] ?? []), ...normalizedCommands];
     }
 
-    return commandsByHostname;
+    return commandsByScope;
   }
 
   function normalizeCommand(value) {
@@ -225,7 +279,7 @@
       previousVersion: storedVersion,
       data: {
         [STORAGE_SCHEMA_VERSION_KEY]: STORAGE_SCHEMA_VERSION,
-        [COMMANDS_STORAGE_KEY]: normalizeCommandsByHostname(stored[COMMANDS_STORAGE_KEY]),
+        [COMMANDS_STORAGE_KEY]: normalizeCommandsByScope(stored[COMMANDS_STORAGE_KEY]),
         [SETTINGS_STORAGE_KEY]: normalizeSettings(stored[SETTINGS_STORAGE_KEY])
       }
     };
@@ -252,12 +306,14 @@
     matchesKeyBinding,
     migrateStorage,
     middleEllipsis,
-    normalizeCommandsByHostname,
+    normalizeCommandsByScope,
     normalizeKeyBinding,
     normalizeKeyBindings,
     normalizeSettings,
+    normalizeScope,
     normalizeUrl,
-    resolveTheme
+    resolveTheme,
+    scopeMatches
   });
 
   globalThis.SiteCommandPaletteCore = api;

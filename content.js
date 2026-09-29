@@ -5,9 +5,12 @@
     fuzzyMatch,
     keyBindingHasModifier,
     matchesKeyBinding,
+    normalizeCommandsByScope,
+    normalizeScope,
     normalizeSettings,
     normalizeUrl,
-    resolveTheme
+    resolveTheme,
+    scopeMatches
   } = globalThis.SiteCommandPaletteCore;
   const {
     COMMANDS_STORAGE_KEY,
@@ -21,12 +24,14 @@
   });
 
   let palette = null;
+  let commandsByScope = {};
   let commands = [];
   let settings = normalizeSettings();
   let filteredItems = [];
   let selectedIndex = 0;
   let opening = false;
   let editingCommandId = null;
+  let editingCommandScope = null;
   const suppressedKeyups = new Set();
   const systemTheme = matchMedia("(prefers-color-scheme: dark)");
 
@@ -198,6 +203,18 @@
             URL
             <input class="url" name="url" required type="url" autocomplete="off">
           </label>
+          <div class="scope-field">
+            <div class="scope-heading">
+              <label for="scope-pattern">Scope</label>
+              <div class="scope-actions" role="group" aria-label="Scope shortcuts">
+                <button type="button" data-scope-preset="site" aria-pressed="false">This site</button>
+                <button type="button" data-scope-preset="global" aria-pressed="false">Global</button>
+                <button type="button" data-scope-preset="custom" aria-pressed="false">Custom</button>
+              </div>
+            </div>
+            <input class="scope-pattern" id="scope-pattern" name="scope-pattern"
+              required autocomplete="off" placeholder="*.github.com or github.com/org/*">
+          </div>
           <p class="error" role="alert" hidden></p>
           <div class="form-actions">
             <button class="cancel-button" type="button">Cancel</button>
@@ -223,6 +240,8 @@
       footer: overlay.querySelector("footer"),
       name: overlay.querySelector(".name"),
       url: overlay.querySelector(".url"),
+      scopePattern: overlay.querySelector(".scope-pattern"),
+      scopePresets: overlay.querySelectorAll("[data-scope-preset]"),
       error: overlay.querySelector(".error"),
       formTitle: overlay.querySelector(".form-title"),
       saveButton: overlay.querySelector(".save-button")
@@ -230,11 +249,14 @@
 
     overlay.addEventListener("click", handleOverlayClick);
     palette.search.addEventListener("input", filterAndRender);
+    palette.scopePattern.addEventListener("input", updateScopePresetState);
+    overlay.querySelector(".scope-actions").addEventListener("click", applyScopePreset);
     overlay.querySelector(".cancel-button").addEventListener("click", showCommandList);
     palette.addView.addEventListener("submit", saveCommand);
 
     const stored = await loadStorage();
-    commands = stored[COMMANDS_STORAGE_KEY][location.hostname] ?? [];
+    commandsByScope = stored[COMMANDS_STORAGE_KEY];
+    refreshCommands();
     settings = stored[SETTINGS_STORAGE_KEY];
 
     if (!palette) return;
@@ -267,6 +289,7 @@
 
   function showAddForm() {
     editingCommandId = null;
+    editingCommandScope = null;
     palette.mode = "add";
     palette.listView.hidden = true;
     palette.addView.hidden = false;
@@ -274,12 +297,15 @@
     palette.saveButton.textContent = "Save command";
     palette.name.value = document.title.trim() || location.hostname;
     palette.url.value = location.href;
+    palette.scopePattern.value = location.hostname;
+    updateScopePresetState();
     setError("");
     palette.name.select();
   }
 
   function showEditForm(command) {
     editingCommandId = command.id;
+    editingCommandScope = command.scope;
     palette.mode = "add";
     palette.listView.hidden = true;
     palette.addView.hidden = false;
@@ -287,16 +313,49 @@
     palette.saveButton.textContent = "Update command";
     palette.name.value = command.name;
     palette.url.value = command.url;
+    palette.scopePattern.value = command.scope;
+    updateScopePresetState();
     setError("");
     palette.name.select();
   }
 
   function showCommandList() {
     editingCommandId = null;
+    editingCommandScope = null;
     palette.mode = "list";
     palette.addView.hidden = true;
     palette.listView.hidden = false;
     palette.search.focus();
+  }
+
+  function applyScopePreset(event) {
+    const preset = event.target.closest("[data-scope-preset]")?.dataset.scopePreset;
+    if (!preset) return;
+
+    palette.scopePattern.value = {
+      site: location.hostname,
+      global: "*",
+      custom: `*.${location.hostname}`
+    }[preset];
+    updateScopePresetState();
+    palette.scopePattern.focus();
+    palette.scopePattern.select();
+  }
+
+  function updateScopePresetState() {
+    const scope = normalizeScope(palette.scopePattern.value);
+    let selectedPreset = null;
+    if (scope === location.hostname) selectedPreset = "site";
+    else if (scope === "*") selectedPreset = "global";
+    else if (scope) selectedPreset = "custom";
+
+    for (const button of palette.scopePresets) {
+      button.setAttribute("aria-pressed", String(button.dataset.scopePreset === selectedPreset));
+    }
+  }
+
+  function selectedScope() {
+    return normalizeScope(palette.scopePattern.value);
   }
 
   async function saveCommand(event) {
@@ -304,6 +363,7 @@
 
     const name = palette.name.value.trim();
     const url = normalizeUrl(palette.url.value);
+    const scope = selectedScope();
 
     if (!name) {
       setError("Enter a command name.");
@@ -317,22 +377,46 @@
       return;
     }
 
-    if (editingCommandId) {
-      commands = commands.map((command) => (
-        command.id === editingCommandId ? { ...command, name, url } : command
-      ));
-    } else {
-      commands.push({ id: crypto.randomUUID(), name, url });
+    if (!scope) {
+      setError("Enter a valid scope pattern.");
+      palette.scopePattern.focus();
+      return;
     }
-    await storeCommands(commands);
+
+    if (editingCommandId) {
+      const previousCommands = commandsByScope[editingCommandScope] ?? [];
+      commandsByScope[editingCommandScope] = previousCommands.filter(
+        (command) => command.id !== editingCommandId
+      );
+      if (commandsByScope[editingCommandScope].length === 0) {
+        delete commandsByScope[editingCommandScope];
+      }
+      commandsByScope[scope] = [
+        ...(commandsByScope[scope] ?? []),
+        { id: editingCommandId, name, url }
+      ];
+    } else {
+      commandsByScope[scope] = [
+        ...(commandsByScope[scope] ?? []),
+        { id: crypto.randomUUID(), name, url }
+      ];
+    }
+    await storeCommands();
+    refreshCommands();
     palette.search.value = "";
     showCommandList();
     filterAndRender();
   }
 
   async function removeCommand(id) {
-    commands = commands.filter((command) => command.id !== id);
-    await storeCommands(commands);
+    const command = commands.find((candidate) => candidate.id === id);
+    if (!command) return;
+
+    commandsByScope[command.scope] = (commandsByScope[command.scope] ?? [])
+      .filter((candidate) => candidate.id !== id);
+    if (commandsByScope[command.scope].length === 0) delete commandsByScope[command.scope];
+    await storeCommands();
+    refreshCommands();
     filterAndRender();
   }
 
@@ -547,7 +631,15 @@
   }
 
   function handleStorageChange(changes, areaName) {
-    if (areaName !== "local" || !changes[SETTINGS_STORAGE_KEY]) return;
+    if (areaName !== "local") return;
+
+    if (changes[COMMANDS_STORAGE_KEY]) {
+      commandsByScope = normalizeCommandsByScope(changes[COMMANDS_STORAGE_KEY].newValue);
+      refreshCommands();
+      if (palette?.mode === "list") filterAndRender();
+    }
+
+    if (!changes[SETTINGS_STORAGE_KEY]) return;
 
     settings = normalizeSettings(changes[SETTINGS_STORAGE_KEY].newValue);
     applyTheme();
@@ -560,12 +652,16 @@
     return value.charAt(0).toLocaleUpperCase() + value.slice(1);
   }
 
-  async function storeCommands(siteCommands) {
-    const result = await chrome.storage.local.get(COMMANDS_STORAGE_KEY);
-    const commandsByHostname = result[COMMANDS_STORAGE_KEY] ?? {};
+  function refreshCommands() {
+    commands = Object.entries(commandsByScope)
+      .filter(([scope]) => scopeMatches(scope, location))
+      .flatMap(([scope, scopedCommands]) => (
+        scopedCommands.map((command) => ({ ...command, scope }))
+      ));
+  }
 
-    commandsByHostname[location.hostname] = siteCommands;
-    await chrome.storage.local.set({ [COMMANDS_STORAGE_KEY]: commandsByHostname });
+  async function storeCommands() {
+    await chrome.storage.local.set({ [COMMANDS_STORAGE_KEY]: commandsByScope });
   }
 
   function appendHighlightedText(element, value, indices) {

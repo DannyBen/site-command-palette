@@ -15,9 +15,12 @@ const {
   matchesKeyBinding,
   migrateStorage,
   middleEllipsis,
+  normalizeCommandsByScope,
+  normalizeScope,
   normalizeSettings,
   normalizeUrl,
-  resolveTheme
+  resolveTheme,
+  scopeMatches
 } = require("../core.js");
 
 test("normalizeUrl accepts HTTP URLs and rejects unsafe protocols", () => {
@@ -25,6 +28,39 @@ test("normalizeUrl accepts HTTP URLs and rejects unsafe protocols", () => {
   assert.equal(normalizeUrl("http://example.com"), "http://example.com/");
   assert.equal(normalizeUrl("javascript:alert(1)"), null);
   assert.equal(normalizeUrl("not a URL"), null);
+});
+
+test("normalizeScope keeps compact hostname and path glob patterns", () => {
+  assert.equal(normalizeScope(" GitHub.COM "), "github.com");
+  assert.equal(normalizeScope("https://pages.github.com/dannyben/*"), "pages.github.com/dannyben/*");
+  assert.equal(normalizeScope("*"), "*");
+  assert.equal(normalizeScope("https://github.com/?tab=repositories"), "github.com");
+  assert.equal(normalizeScope("not a scope"), null);
+});
+
+test("scopeMatches uses whole-value glob semantics", () => {
+  assert.equal(scopeMatches("github.com", "https://github.com/openai"), true);
+  assert.equal(scopeMatches("github.com", "https://docs.github.com"), false);
+  assert.equal(scopeMatches("*.google.com", "https://mail.google.com/inbox"), true);
+  assert.equal(scopeMatches("*.google.com", "https://google.com"), false);
+  assert.equal(scopeMatches("*google.com", "https://google.com"), true);
+  assert.equal(scopeMatches("*google.com", "https://mail.google.com"), true);
+  assert.equal(scopeMatches("*google.com", "https://notgoogle.com"), true);
+  assert.equal(scopeMatches("pages.github.com/dannyben/*", "https://pages.github.com/dannyben/project"), true);
+  assert.equal(scopeMatches("pages.github.com/dannyben/*", "https://pages.github.com/other/project"), false);
+  assert.equal(scopeMatches("*", "https://example.com/anything"), true);
+});
+
+test("normalizeCommandsByScope preserves exact, global, and wildcard collections", () => {
+  assert.deepEqual(normalizeCommandsByScope({
+    "EXAMPLE.COM": [{ id: "one", name: "One", url: "https://example.com/one" }],
+    "*.example.com": [{ id: "two", name: "Two", url: "https://docs.example.com/two" }],
+    "*": [{ id: "three", name: "Three", url: "https://elsewhere.test/three" }]
+  }), {
+    "example.com": [{ id: "one", name: "One", url: "https://example.com/one" }],
+    "*.example.com": [{ id: "two", name: "Two", url: "https://docs.example.com/two" }],
+    "*": [{ id: "three", name: "Three", url: "https://elsewhere.test/three" }]
+  });
 });
 
 test("fuzzyMatch returns matched character indices", () => {
