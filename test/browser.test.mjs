@@ -133,6 +133,10 @@ test("palette keyboard, theme, and settings flows work in Chromium", { timeout: 
         "light"
       );
       assert.equal(
+        await evaluate(optionsCdp, "document.getElementById('extension-version').textContent"),
+        "· Version 0.1.1"
+      );
+      assert.equal(
         await evaluate(optionsCdp, "typeof window.showDirectoryPicker"),
         "function",
         "extension settings should have access to the directory picker"

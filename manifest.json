@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Site Command Palette",
   "description": "A hostname-specific command palette for saved pages.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAyFLFpLRV1xu+kUqExe8fDt141DyS91dN07kCyBTVWQx6iFi+bxb+BYEJUwag+atGAf7JY477gjmJrl8ATXSBvweMo4vgWgREkqMIYnzRi6f2Z9k8NRWKGkoCKGUlOwkCJswjPrOyCDsk9DGQTFkpeVSeWl1WVajmF5emJURsmRNfys8f60N77yo3ixdVRTLWoaHqWoyCYFABkE9lyXVwxCJICSmZj1NWxfEXR39+fEARSkaDxBe3zVrHO6MciQfMUvjsMJv6ZTOBp5QwpaEUOWnoXYiqLYfSNgzFBC8XnT05dSqvcjR1RBoCj8X/Pexire10R1MG0nryG6NLNhgS8wIDAQAB",
   "permissions": [
     "storage"

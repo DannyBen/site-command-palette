@@ -28,6 +28,7 @@
   const systemTheme = matchMedia("(prefers-color-scheme: dark)");
 
   const globalTheme = document.getElementById("global-theme");
+  const extensionVersion = document.getElementById("extension-version");
   const overrideList = document.getElementById("override-list");
   const emptyOverrides = document.getElementById("empty-overrides");
   const overrideCount = document.getElementById("override-count");
@@ -51,6 +52,8 @@
   let pendingDirectory = null;
   let currentBackupState = null;
   let capturingBinding = null;
+
+  extensionVersion.textContent = `· Version ${chrome.runtime.getManifest().version}`;
 
   globalTheme.addEventListener("change", saveGlobalTheme);
   overrideList.addEventListener("change", updateSiteTheme);

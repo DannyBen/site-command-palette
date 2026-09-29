@@ -7,8 +7,11 @@ const projectRoot = path.resolve(__dirname, "..");
 
 test("manifest is valid and references existing packaged files", async () => {
   const manifest = JSON.parse(await readFile(path.join(projectRoot, "manifest.json"), "utf8"));
+  const packageMetadata = JSON.parse(await readFile(path.join(projectRoot, "package.json"), "utf8"));
 
   assert.equal(manifest.manifest_version, 3);
+  assert.equal(manifest.version, "0.1.1");
+  assert.equal(packageMetadata.version, manifest.version);
   assert.ok(manifest.permissions.includes("storage"));
   assert.deepEqual(manifest.content_scripts[0].js, ["core.js", "storage.js", "content.js"]);
 
