@@ -44,3 +44,17 @@ the in-page palette requires a content script on those sites.
   filter and selected action.
 
 The palette cannot run on protected Chrome pages such as `chrome://extensions`.
+
+## Test
+
+Run the complete dependency-free suite with:
+
+```bash
+npm test
+```
+
+The suite uses Node's built-in test runner. It validates pure logic and the
+manifest, then launches installed Chromium against a localhost-only fixture to
+exercise real extension keyboard and theme behavior. It creates an isolated
+temporary Chrome profile and removes it afterward. Set `CHROMIUM_BIN` if the
+Chromium executable is installed somewhere other than a standard Linux path.
