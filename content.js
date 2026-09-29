@@ -621,9 +621,7 @@
       appendHighlightedText(label, item.name, item.match.indices);
       openButton.append(label);
 
-      if (item.type === "link") {
-        openButton.title = item.url;
-      } else {
+      if (item.type !== "link") {
         const detail = document.createElement("span");
         detail.className = "command-detail";
         detail.textContent = item.detail;
