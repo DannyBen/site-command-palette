@@ -97,7 +97,7 @@ button {
     padding: 12px var(--normal-gap);
     border-top: 1px solid var(--border-color);
     color: var(--muted-text-color);
-    font-size: 12px;
+    font-size: 14px;
   }
 
   kbd {
@@ -191,7 +191,7 @@ button {
 
   .command-detail {
     color: var(--muted-text-color);
-    font-size: 12px;
+    font-size: 14px;
     text-align: right;
   }
 

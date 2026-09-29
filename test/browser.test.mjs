@@ -119,6 +119,19 @@ test("palette keyboard, theme, and settings flows work in Chromium", { timeout: 
         await evaluate(optionsCdp, "document.getElementById('global-theme').value"),
         "light"
       );
+      assert.equal(
+        await evaluate(optionsCdp, "typeof window.showDirectoryPicker"),
+        "function",
+        "extension settings should have access to the directory picker"
+      );
+      assert.equal(
+        await evaluate(optionsCdp, "document.getElementById('backup-state').textContent"),
+        "Not configured"
+      );
+      assert.equal(
+        await evaluate(optionsCdp, "document.getElementById('backup-now').disabled"),
+        true
+      );
       assert.deepEqual(
         await evaluate(optionsCdp, `JSON.stringify(
           [...document.querySelector('[data-hostname="127.0.0.1"]').options]

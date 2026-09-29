@@ -10,6 +10,7 @@ zip -j -FS -X "$archive" \
   background.js \
   core.js \
   storage.js \
+  backup.js \
   content.js \
   palette.css \
   options.html \

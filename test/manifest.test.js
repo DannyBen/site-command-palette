@@ -19,6 +19,7 @@ test("manifest is valid and references existing packaged files", async () => {
     manifest.options_ui.page,
     "options.css",
     "options.js",
+    "backup.js",
     "storage.js"
   ];
 
