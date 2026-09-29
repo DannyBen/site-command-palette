@@ -31,7 +31,9 @@
   "web_accessible_resources": [
     {
       "resources": [
-        "palette.css"
+        "palette.css",
+        "icons/edit.svg",
+        "icons/delete.svg"
       ],
       "matches": [
         "http://*/*",

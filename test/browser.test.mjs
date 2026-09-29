@@ -121,7 +121,40 @@ test("palette keyboard, theme, and settings flows work in Chromium", { timeout: 
     await activateAccessibleNode(cdp, "button", "Save command");
     await waitFor(async () => (await selectedOptionText(cdp)).includes("Duplicate"));
 
-    await press(cdp, "e", "KeyE", 69, 1);
+    assert.match(
+      await accessibleNodeChildStyle(
+        cdp,
+        "button",
+        "Edit Command palette browser test › Duplicate",
+        ".icon",
+        "maskImage"
+      ),
+      /^url\("chrome-extension:\/\//,
+      "row actions should use packaged extension icon assets"
+    );
+    const editName = "Edit Command palette browser test › Duplicate";
+    const removeName = "Remove Command palette browser test › Duplicate";
+    await focusAccessibleNode(cdp, "button", editName);
+    const editFocusStyle = [
+      await accessibleNodeStyle(cdp, "button", editName, "backgroundColor"),
+      await accessibleNodeStyle(cdp, "button", editName, "color")
+    ];
+    await focusAccessibleNode(cdp, "button", removeName);
+    const removeFocusStyle = [
+      await accessibleNodeStyle(cdp, "button", removeName, "backgroundColor"),
+      await accessibleNodeStyle(cdp, "button", removeName, "color")
+    ];
+    assert.deepEqual(
+      removeFocusStyle,
+      editFocusStyle,
+      "edit and delete should share one focus treatment"
+    );
+    assert.notEqual(editFocusStyle[0], "rgba(0, 0, 0, 0)");
+    await activateAccessibleNode(
+      cdp,
+      "button",
+      editName
+    );
     assert.equal(
       await hasAccessibleNode(cdp, "StaticText", "Shared by 2 commands"),
       true,
@@ -145,8 +178,10 @@ test("palette keyboard, theme, and settings flows work in Chromium", { timeout: 
     await press(cdp, "x", "KeyX", 88, 1);
     await waitFor(async () => !(await hasAccessibleNode(cdp, "StaticText", "Fixture › Second")));
     await press(cdp, "Escape", "Escape", 27);
+    await waitFor(async () => hasAccessibleNode(cdp, "searchbox", "Search commands"));
 
     await press(cdp, "a", "KeyA", 65, 1);
+    await waitFor(async () => hasAccessibleNode(cdp, "heading", "Add command"));
     await cdp.send("Input.insertText", { text: "External" });
     await setAccessibleInputValue(cdp, "URL", "https://github.com/");
     await activateAccessibleNode(cdp, "button", "Save command");
@@ -157,18 +192,24 @@ test("palette keyboard, theme, and settings flows work in Chromium", { timeout: 
       "the command matching the current page should be selected"
     );
     assert.equal(
-      await accessibleNodeStyle(
+      await accessibleNodeClosestStyle(
         cdp,
         "button",
         "Remove Fixture › Zulu",
+        ".command-actions",
         "opacity"
       ),
       "1"
     );
-    assert.equal(
-      await accessibleNodeStyle(cdp, "button", "Remove Github › External", "opacity"),
-      "0"
-    );
+    await waitFor(async () => (
+      await accessibleNodeClosestStyle(
+        cdp,
+        "button",
+        "Remove Github › External",
+        ".command-actions",
+        "opacity"
+      )
+    ) === "0");
 
     await press(cdp, "x", "KeyX", 88, 1);
     await waitFor(async () => !(await hasAccessibleNode(
@@ -543,12 +584,35 @@ async function activateAccessibleNode(cdp, role, name) {
   });
 }
 
+async function focusAccessibleNode(cdp, role, name) {
+  const { nodes } = await cdp.send("Accessibility.getFullAXTree");
+  const node = nodes.find((candidate) => (
+    candidate.role?.value === role && candidate.name?.value === name
+  ));
+  assert.ok(node?.backendDOMNodeId, `${role} named “${name}” should be accessible`);
+
+  const { object } = await cdp.send("DOM.resolveNode", {
+    backendNodeId: node.backendDOMNodeId
+  });
+  await cdp.send("Runtime.callFunctionOn", {
+    objectId: object.objectId,
+    functionDeclaration: "function() { this.focus(); }"
+  });
+}
+
 async function setAccessibleInputValue(cdp, name, value) {
   const { nodes } = await cdp.send("Accessibility.getFullAXTree");
   const node = nodes.find((candidate) => (
-    candidate.role?.value === "textbox" && candidate.name?.value === name
+    candidate.role?.value === "textbox" && candidate.name?.value.trim() === name
   ));
-  assert.ok(node?.backendDOMNodeId, `textbox named “${name}” should be accessible`);
+  const availableTextboxes = nodes
+    .filter((candidate) => candidate.role?.value === "textbox")
+    .map((candidate) => candidate.name?.value.trim())
+    .filter(Boolean);
+  assert.ok(
+    node?.backendDOMNodeId,
+    `textbox named “${name}” should be accessible; found ${availableTextboxes.join(", ")}`
+  );
 
   const { object } = await cdp.send("DOM.resolveNode", {
     backendNodeId: node.backendDOMNodeId
@@ -598,6 +662,48 @@ async function accessibleNodeStyle(cdp, role, name, property) {
     objectId: object.objectId,
     functionDeclaration: "function(property) { return getComputedStyle(this)[property]; }",
     arguments: [{ value: property }],
+    returnByValue: true
+  });
+  return result.value;
+}
+
+async function accessibleNodeClosestStyle(cdp, role, name, selector, property) {
+  const { nodes } = await cdp.send("Accessibility.getFullAXTree");
+  const node = nodes.find((candidate) => (
+    candidate.role?.value === role && candidate.name?.value === name
+  ));
+  assert.ok(node?.backendDOMNodeId, `${role} named “${name}” should be accessible`);
+
+  const { object } = await cdp.send("DOM.resolveNode", {
+    backendNodeId: node.backendDOMNodeId
+  });
+  const { result } = await cdp.send("Runtime.callFunctionOn", {
+    objectId: object.objectId,
+    functionDeclaration: `function(selector, property) {
+      return getComputedStyle(this.closest(selector))[property];
+    }`,
+    arguments: [{ value: selector }, { value: property }],
+    returnByValue: true
+  });
+  return result.value;
+}
+
+async function accessibleNodeChildStyle(cdp, role, name, selector, property) {
+  const { nodes } = await cdp.send("Accessibility.getFullAXTree");
+  const node = nodes.find((candidate) => (
+    candidate.role?.value === role && candidate.name?.value === name
+  ));
+  assert.ok(node?.backendDOMNodeId, `${role} named “${name}” should be accessible`);
+
+  const { object } = await cdp.send("DOM.resolveNode", {
+    backendNodeId: node.backendDOMNodeId
+  });
+  const { result } = await cdp.send("Runtime.callFunctionOn", {
+    objectId: object.objectId,
+    functionDeclaration: `function(selector, property) {
+      return getComputedStyle(this.querySelector(selector))[property];
+    }`,
+    arguments: [{ value: selector }, { value: property }],
     returnByValue: true
   });
   return result.value;

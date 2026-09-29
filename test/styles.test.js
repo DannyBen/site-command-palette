@@ -36,7 +36,6 @@ test("palette and settings share action, interaction, and state colors", () => {
     "focus-ring-color",
     "action-focus-ring-color",
     "danger-color",
-    "danger-background-color",
     "border-color"
   ];
   const [options, palette] = stylesheets;

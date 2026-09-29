@@ -1,7 +1,7 @@
 :host {
   --background-color: #ffffff;
   --raised-background-color: #f4f4f5;
-  --hover-background-color: #eaf3ff;
+  --hover-background-color: #dbeafe;
   --list-selection-background-color: #b3d4fc;
   --text-selection-background-color: #93c5fd;
   --selected-secondary-text-color: #52525b;
@@ -18,7 +18,6 @@
   --focus-ring-color: rgb(37 99 235 / 28%);
   --action-focus-ring-color: rgb(31 136 61 / 22%);
   --danger-color: #b91c1c;
-  --danger-background-color: #fee2e2;
   --border-color: #d4d4d8;
   --overlay-background-color: rgb(24 24 27 / 24%);
   --normal-gap: 16px;
@@ -57,7 +56,6 @@
   --focus-ring-color: rgb(96 165 250 / 30%);
   --action-focus-ring-color: rgb(46 160 67 / 28%);
   --danger-color: #fca5a5;
-  --danger-background-color: #3a1d1d;
   --border-color: #3f3f46;
   --overlay-background-color: rgb(0 0 0 / 58%);
   --panel-shadow: 0 24px 80px rgb(0 0 0 / 55%);
@@ -200,8 +198,9 @@ button {
   }
 
   &:hover,
-  &[aria-selected="true"] {
-    .remove-command {
+  &[aria-selected="true"],
+  &:focus-within {
+    .command-actions {
       opacity: 1;
       pointer-events: auto;
     }
@@ -215,14 +214,13 @@ button {
       color: var(--selected-secondary-text-color);
     }
 
-    .remove-command {
+    .command-actions {
       color: var(--selected-secondary-text-color);
     }
   }
 }
 
 .open-command,
-.remove-command,
 .cancel-button,
 .save-button {
   border: 0;
@@ -270,25 +268,55 @@ button {
   }
 }
 
-.remove-command {
+.command-actions {
   align-self: center;
+  display: flex;
+  gap: 2px;
   margin-right: 4px;
-  padding: 4px 9px;
-  border-radius: var(--control-radius);
-  background: transparent;
   color: var(--muted-text-color);
-  font-size: 18px;
   opacity: 0;
   pointer-events: none;
   transition: opacity 120ms ease;
 
+  &:focus-within {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+.icon-button {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 6px;
+  border-radius: var(--control-radius);
+  border: 0;
+  background: transparent;
+
   &:hover,
   &:focus-visible {
     outline: none;
-    background: var(--danger-background-color);
-    color: var(--danger-color);
-    opacity: 1;
-    pointer-events: auto;
+    background: var(--raised-background-color);
+    color: var(--interaction-color);
+  }
+}
+
+.icon {
+  display: block;
+  width: 16px;
+  height: 16px;
+  background: currentColor;
+  mask-position: center;
+  mask-repeat: no-repeat;
+  mask-size: contain;
+
+  &.edit {
+    mask-image: var(--edit-icon);
+  }
+
+  &.delete {
+    mask-image: var(--delete-icon);
   }
 }
 

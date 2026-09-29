@@ -5,7 +5,7 @@ version="$(node -p "require('./manifest.json').version")"
 archive="dist/site-command-palette-${version}.zip"
 
 mkdir -p dist
-zip -j -FS -X "$archive" \
+zip -FS -X "$archive" \
   manifest.json \
   background.js \
   core.js \
@@ -15,6 +15,8 @@ zip -j -FS -X "$archive" \
   palette.css \
   options.html \
   options.js \
-  options.css
+  options.css \
+  icons/edit.svg \
+  icons/delete.svg
 
 printf 'Created %s\n' "$archive"

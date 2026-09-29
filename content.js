@@ -185,6 +185,8 @@
 
     const host = document.createElement("div");
     host.id = HOST_ID;
+    host.style.setProperty("--edit-icon", `url("${chrome.runtime.getURL("icons/edit.svg")}")`);
+    host.style.setProperty("--delete-icon", `url("${chrome.runtime.getURL("icons/delete.svg")}")`);
     const root = host.attachShadow({ mode: "closed" });
     const style = document.createElement("style");
     const overlay = document.createElement("div");
@@ -314,6 +316,13 @@
     const openButton = event.target.closest("[data-activate-item]");
     if (openButton) {
       activateItem(filteredItems[Number(openButton.dataset.activateItem)]);
+      return;
+    }
+
+    const editButton = event.target.closest("[data-edit-command]");
+    if (editButton) {
+      const command = commands.find((candidate) => candidate.id === editButton.dataset.editCommand);
+      if (command) showEditForm(command);
       return;
     }
 
@@ -626,14 +635,25 @@
       row.append(openButton);
 
       if (item.type === "link") {
+        const actions = document.createElement("div");
+        const editButton = document.createElement("button");
         const removeButton = document.createElement("button");
+
+        actions.className = "command-actions";
+        editButton.type = "button";
+        editButton.className = "icon-button command-action edit-command";
+        editButton.dataset.editCommand = item.id;
+        editButton.setAttribute("aria-label", `Edit ${item.name}`);
+        editButton.append(createIcon("edit"));
+
         removeButton.type = "button";
-        removeButton.className = "remove-command";
+        removeButton.className = "icon-button command-action remove-command";
         removeButton.dataset.removeCommand = item.id;
         removeButton.setAttribute("aria-label", `Remove ${item.name}`);
-        removeButton.title = "Remove command";
-        removeButton.textContent = "×";
-        row.append(removeButton);
+        removeButton.append(createIcon("delete"));
+
+        actions.append(editButton, removeButton);
+        row.append(actions);
       }
 
       palette.commandList.append(row);
@@ -832,6 +852,13 @@
         element.append(document.createTextNode(value[index]));
       }
     }
+  }
+
+  function createIcon(name) {
+    const icon = document.createElement("span");
+    icon.className = `icon ${name}`;
+    icon.setAttribute("aria-hidden", "true");
+    return icon;
   }
 
   function setError(message) {
