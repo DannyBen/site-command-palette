@@ -256,6 +256,7 @@
     }
     if (!enabled) return;
     overlay.className = "overlay";
+    overlay.dir = "ltr";
     overlay.innerHTML = `
       <section class="palette" role="dialog" aria-modal="true" aria-label="Site command palette">
         <div class="list-view">

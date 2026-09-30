@@ -10,10 +10,14 @@ import { fileURLToPath } from "node:url";
 
 const extensionRoot = fileURLToPath(new URL("../", import.meta.url));
 const fixture = `<!doctype html>
-<html lang="en">
+<html lang="he" dir="rtl">
   <head>
     <meta charset="utf-8">
     <title>Command palette browser test</title>
+    <style>
+      html { font-family: serif; }
+      div { direction: rtl !important; font-family: serif !important; }
+    </style>
     <script>
       window.receivedKeys = [];
       window.addEventListener("keydown", (event) => receivedKeys.push(event.key));
@@ -74,6 +78,17 @@ test("palette keyboard, theme, and settings flows work in Chromium", { timeout: 
     ));
 
     await openPalette(cdp);
+
+    assert.equal(
+      await accessibleNodeStyle(cdp, "searchbox", "Search commands", "direction"),
+      "ltr",
+      "the palette should not inherit the page direction"
+    );
+    assert.match(
+      await accessibleNodeStyle(cdp, "searchbox", "Search commands", "fontFamily"),
+      /^system-ui/,
+      "the palette should not inherit the page font"
+    );
 
     assert.equal(
       await accessibleNodeDomProperty(cdp, "searchbox", "Search commands", "placeholder"),
