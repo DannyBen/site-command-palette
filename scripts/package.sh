@@ -17,6 +17,10 @@ zip -FS -X "$archive" \
   options.js \
   options.css \
   icons/edit.svg \
-  icons/delete.svg
+  icons/delete.svg \
+  support/icons/icon-16.png \
+  support/icons/icon-32.png \
+  support/icons/icon-48.png \
+  support/icons/icon-128.png
 
 printf 'Created %s\n' "$archive"

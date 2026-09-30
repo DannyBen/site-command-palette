@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Workspace</title>
+    <style>
+      :root {
+        --page-background-color: #eef2f6;
+        --panel-background-color: #ffffff;
+        --raised-background-color: #f7f9fb;
+        --text-color: #334155;
+        --muted-text-color: #94a3b8;
+        --border-color: #dbe3ec;
+        --accent-color: #2ea043;
+        --normal-gap: 24px;
+        --small-gap: 12px;
+        --panel-radius: 14px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        min-height: 100vh;
+        margin: 0;
+        background: var(--page-background-color);
+        color: var(--text-color);
+        font: 15px/1.5 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      header {
+        display: flex;
+        align-items: center;
+        gap: var(--normal-gap);
+        height: 72px;
+        padding: 0 32px;
+        border-bottom: 1px solid var(--border-color);
+        background: var(--panel-background-color);
+
+        .brand {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          font-weight: 650;
+        }
+
+        .brand-mark {
+          width: 28px;
+          height: 28px;
+          border-radius: 9px;
+          background: var(--accent-color);
+        }
+
+        .search-placeholder {
+          width: min(420px, 40vw);
+          height: 36px;
+          margin-left: auto;
+          border: 1px solid var(--border-color);
+          border-radius: 9px;
+          background: var(--raised-background-color);
+        }
+
+        .avatar {
+          width: 34px;
+          height: 34px;
+          border-radius: 50%;
+          background: #cbd5e1;
+        }
+      }
+
+      main {
+        display: grid;
+        grid-template-columns: 210px minmax(0, 1fr);
+        gap: 32px;
+        width: min(1120px, calc(100% - 64px));
+        margin: 42px auto;
+      }
+
+      nav,
+      section {
+        border: 1px solid var(--border-color);
+        border-radius: var(--panel-radius);
+        background: var(--panel-background-color);
+      }
+
+      nav {
+        display: grid;
+        align-content: start;
+        gap: var(--small-gap);
+        padding: 20px;
+
+        span {
+          height: 34px;
+          border-radius: 8px;
+          background: var(--raised-background-color);
+
+          &:first-child {
+            background: #dcfce7;
+          }
+        }
+      }
+
+      section {
+        padding: 28px;
+
+        h1 {
+          margin: 0 0 6px;
+          font-size: 26px;
+          font-weight: 650;
+        }
+
+        p {
+          margin: 0 0 var(--normal-gap);
+          color: var(--muted-text-color);
+        }
+      }
+
+      .cards {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 18px;
+
+        article {
+          min-height: 150px;
+          padding: 20px;
+          border: 1px solid var(--border-color);
+          border-radius: 12px;
+          background: var(--raised-background-color);
+        }
+
+        span {
+          display: block;
+          height: 12px;
+          margin-bottom: var(--small-gap);
+          border-radius: 999px;
+          background: #dbe3ec;
+
+          &:nth-child(2) {
+            width: 72%;
+          }
+
+          &:nth-child(3) {
+            width: 46%;
+          }
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="brand"><span class="brand-mark"></span>Workspace</div>
+      <div class="search-placeholder"></div>
+      <div class="avatar"></div>
+    </header>
+    <main>
+      <nav aria-label="Workspace navigation">
+        <span></span>
+        <span></span>
+        <span></span>
+        <span></span>
+      </nav>
+      <section>
+        <h1>Overview</h1>
+        <p>Your frequently used pages and tools.</p>
+        <div class="cards">
+          <article><span></span><span></span><span></span></article>
+          <article><span></span><span></span><span></span></article>
+          <article><span></span><span></span><span></span></article>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

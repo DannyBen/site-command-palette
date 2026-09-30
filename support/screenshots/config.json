@@ -1,0 +1,128 @@
+{
+  "viewport": {
+    "width": 800,
+    "height": 500,
+    "deviceScaleFactor": 1.6
+  },
+  "outputDirectory": "../store/screenshots",
+  "paletteCropDirectory": "../store/palette-crops",
+  "commands": [
+    {
+      "site": "Workspace",
+      "page": "Home",
+      "url": "fixture:/",
+      "scope": "site"
+    },
+    {
+      "site": "Workspace",
+      "page": "Projects",
+      "url": "fixture:/projects",
+      "scope": "site"
+    },
+    {
+      "site": "GitHub",
+      "page": "Home",
+      "url": "https://github.com",
+      "scope": "global"
+    },
+    {
+      "site": "GitHub",
+      "page": "Issues",
+      "url": "https://github.com/issues",
+      "scope": "site"
+    },
+    {
+      "site": "Google",
+      "page": "Home",
+      "url": "https://www.google.com",
+      "scope": "global"
+    },
+    {
+      "site": "Gmail",
+      "page": "Inbox",
+      "url": "https://mail.google.com/mail/u/0/#inbox",
+      "scope": "global"
+    },
+    {
+      "site": "Bashly",
+      "page": "Documentation",
+      "url": "https://bashly.dannyb.co",
+      "scope": "global"
+    }
+  ],
+  "screenshots": [
+    {
+      "name": "palette-light",
+      "screen": "list",
+      "theme": "light",
+      "paletteScope": "all",
+      "paletteCrop": true
+    },
+    {
+      "name": "palette-dark",
+      "screen": "list",
+      "theme": "dark",
+      "paletteScope": "all",
+      "paletteCrop": true
+    },
+    {
+      "name": "add-command-light",
+      "screen": "add",
+      "theme": "light",
+      "paletteScope": "all",
+      "form": {
+        "site": "GitHub",
+        "page": "Pull requests",
+        "url": "https://github.com/pulls",
+        "scope": "*"
+      }
+    },
+    {
+      "name": "add-command-dark",
+      "screen": "add",
+      "theme": "dark",
+      "paletteScope": "all",
+      "form": {
+        "site": "GitHub",
+        "page": "Pull requests",
+        "url": "https://github.com/pulls",
+        "scope": "*"
+      }
+    },
+    {
+      "name": "edit-command-light",
+      "screen": "edit",
+      "theme": "light",
+      "paletteScope": "all",
+      "query": "githubissues",
+      "form": {
+        "site": "GitHub",
+        "page": "Issues",
+        "url": "https://github.com/issues",
+        "scope": "github.com",
+        "preserveScopePreset": true
+      },
+      "focus": "Page"
+    },
+    {
+      "name": "edit-command-dark",
+      "screen": "edit",
+      "theme": "dark",
+      "paletteScope": "all",
+      "query": "githubissues",
+      "form": {
+        "site": "GitHub",
+        "page": "Issues",
+        "url": "https://github.com/issues",
+        "scope": "github.com",
+        "preserveScopePreset": true
+      },
+      "focus": "Page"
+    },
+    {
+      "name": "settings",
+      "screen": "settings",
+      "theme": "light"
+    }
+  ]
+}

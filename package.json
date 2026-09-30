@@ -1,6 +1,6 @@
 {
   "name": "site-command-palette",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "private": true,
   "scripts": {
     "test": "node --test --test-concurrency=1 test/*.test.js",
