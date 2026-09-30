@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="560" viewBox="0 0 1400 560">
+  <defs>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="180%">
+      <feDropShadow dx="0" dy="18" stdDeviation="24" flood-color="#000000" flood-opacity=".28"/>
+    </filter>
+  </defs>
+
+  <rect width="1400" height="560" fill="#18181b"/>
+  <circle cx="50" cy="18" r="250" fill="#17243a"/>
+  <circle cx="1360" cy="570" r="250" fill="#143322"/>
+
+  <g
+    transform="translate(92 93) scale(.72)"
+    fill="none"
+    stroke="#2ea043"
+    stroke-width="12"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  >
+    <circle cx="49" cy="49" r="34"/>
+    <path d="M73 73 105 105"/>
+    <path d="M42 32 59 49 42 66"/>
+  </g>
+
+  <g fill="#fafafa" font-family="Liberation Sans, Arial, sans-serif" font-weight="700">
+    <text x="190" y="152" font-size="54">Site Command Palette</text>
+  </g>
+  <text
+    x="96"
+    y="250"
+    fill="#e4e4e7"
+    font-family="Liberation Sans, Arial, sans-serif"
+    font-size="31"
+  >Save the pages you use.</text>
+  <text
+    x="96"
+    y="294"
+    fill="#e4e4e7"
+    font-family="Liberation Sans, Arial, sans-serif"
+    font-size="31"
+  >Find them without leaving the keyboard.</text>
+
+  <g font-family="Liberation Sans, Arial, sans-serif">
+    <rect x="96" y="365" width="184" height="54" rx="12" fill="#2ea043"/>
+    <text x="188" y="400" text-anchor="middle" fill="#ffffff" font-size="21" font-weight="700">Press ` to open</text>
+  </g>
+
+  <g filter="url(#shadow)" font-family="Liberation Sans, Arial, sans-serif">
+    <rect x="795" y="82" width="515" height="396" rx="18" fill="#27272a" stroke="#3f3f46" stroke-width="2"/>
+
+    <g transform="translate(832 116) scale(.25)" fill="none" stroke="#60a5fa" stroke-width="12" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="49" cy="49" r="34"/>
+      <path d="M73 73 105 105"/>
+    </g>
+    <text x="872" y="151" fill="#fafafa" font-size="25">bash</text>
+    <line x1="823" y1="177" x2="1282" y2="177" stroke="#3f3f46" stroke-width="2"/>
+
+    <rect x="815" y="195" width="475" height="72" rx="10" fill="#17243a"/>
+    <text x="842" y="240" fill="#a1a1aa" font-size="23">GitHub  ›  </text>
+    <text x="952" y="240" fill="#fafafa" font-size="23" font-weight="700">Bash</text>
+    <text x="1004" y="240" fill="#fafafa" font-size="23">ly</text>
+
+    <text x="842" y="319" fill="#a1a1aa" font-size="23">Bashly  ›  </text>
+    <text x="948" y="319" fill="#e4e4e7" font-size="23">Documentation</text>
+
+    <line x1="823" y1="355" x2="1282" y2="355" stroke="#3f3f46" stroke-width="2"/>
+    <text x="842" y="408" fill="#8f8f9b" font-size="17">↑↓ Select</text>
+    <text x="966" y="408" fill="#8f8f9b" font-size="17">Tab Scope</text>
+    <text x="1090" y="408" fill="#8f8f9b" font-size="17">Enter Open</text>
+    <text x="842" y="444" fill="#8f8f9b" font-size="17">Ctrl Enter New tab</text>
+  </g>
+</svg>
