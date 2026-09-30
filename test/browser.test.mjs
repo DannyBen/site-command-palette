@@ -29,6 +29,9 @@ const fixture = `<!doctype html>
 </html>`;
 
 test("palette keyboard, theme, and settings flows work in Chromium", { timeout: 45_000 }, async () => {
+  const manifest = JSON.parse(
+    await readFile(path.join(extensionRoot, "manifest.json"), "utf8")
+  );
   const server = http.createServer((request, response) => {
     if (request.url !== "/") {
       response.writeHead(404).end();
@@ -359,7 +362,7 @@ test("palette keyboard, theme, and settings flows work in Chromium", { timeout: 
       );
       assert.equal(
         await evaluate(optionsCdp, "document.getElementById('extension-version').textContent"),
-        "· Version 0.1.1"
+        `· Version ${manifest.version}`
       );
       assert.equal(
         await evaluate(optionsCdp, "typeof window.showDirectoryPicker"),

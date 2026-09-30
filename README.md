@@ -46,4 +46,5 @@ Site Command Palette keeps commands and preferences locally. See the
 
 ## License
 
-Site Command Palette is available under the [MIT License](LICENSE).
+Site Command Palette is available under the [MIT License](LICENSE) and is
+provided **as is**, without warranty. See the license for the complete terms.

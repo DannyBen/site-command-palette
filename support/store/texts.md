@@ -38,5 +38,13 @@ HOW TO USE IT
 4. Press Tab to switch between commands for the current site and all commands.
 5. Press Ctrl+Enter to open the selected command in a new tab.
 
-Site Command Palette is open source under the MIT License:
+LICENSE AND WARRANTY
+
+Site Command Palette is open source under the MIT License and is provided as
+is, without warranty.
+
+Source code:
 https://github.com/DannyBen/site-command-palette
+
+Complete license terms:
+https://github.com/DannyBen/site-command-palette/blob/master/LICENSE

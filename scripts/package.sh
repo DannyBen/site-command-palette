@@ -16,6 +16,7 @@ zip -FS -X "$archive" \
   options.html \
   options.js \
   options.css \
+  LICENSE \
   icons/edit.svg \
   icons/delete.svg \
   support/icons/icon-16.png \
