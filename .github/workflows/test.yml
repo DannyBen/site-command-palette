@@ -21,10 +21,16 @@ jobs:
         with:
           node-version: 22
 
+      - name: Set up Chrome for Testing
+        id: chrome
+        uses: browser-actions/setup-chrome@v2
+        with:
+          chrome-version: stable
+
       - name: Run tests
         run: npm test
 
       - name: Run browser tests
         env:
-          CHROMIUM_BIN: /usr/bin/google-chrome
+          CHROMIUM_BIN: ${{ steps.chrome.outputs.chrome-path }}
         run: npm run test:browser
