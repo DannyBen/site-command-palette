@@ -687,13 +687,6 @@
     const selectedItem = filteredItems[selectedIndex];
     const hints = [];
 
-    if (filteredItems.length > 1) {
-      hints.push(footerHint("↑/↓", "Select"));
-    }
-    if (selectedItem) {
-      hints.push(footerHint("Enter", selectedItem.type === "link" ? "Open" : "Run"));
-    }
-
     hints.push(footerHint("Tab", "Scope"));
 
     if (selectedItem?.type === "link") {
@@ -707,7 +700,6 @@
       hints.push(shortcutHint(settings.keyBindings.remove, "delete"));
     }
 
-    hints.push(footerHint("Esc", "Close"));
     palette.footer.innerHTML = `<span class="footer-hints">${hints.join(" ")}</span>`;
   }
 
