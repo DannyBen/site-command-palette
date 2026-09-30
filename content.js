@@ -27,6 +27,7 @@
     loadStorage
   } = globalThis.SiteCommandPaletteStorage;
   const HOST_ID = "site-command-palette-root";
+  const COMMAND_SCOPE_STORAGE_KEY = "commandScope";
 
   let palette = null;
   let commandsByScope = {};
@@ -53,6 +54,9 @@
       const stored = await loadStorage();
       settings = stored[SETTINGS_STORAGE_KEY];
       if (isSiteDisabled(settings, location)) return;
+
+      const storedScope = await chrome.storage.local.get(COMMAND_SCOPE_STORAGE_KEY);
+      showAllCommands = storedScope[COMMAND_SCOPE_STORAGE_KEY] === "all";
 
       stylesheet = fetch(chrome.runtime.getURL("palette.css")).then((response) => {
         if (!response.ok) throw new Error("Could not load palette styles");
@@ -167,6 +171,11 @@
       event.preventDefault();
       event.stopPropagation();
       showAllCommands = !showAllCommands;
+      chrome.storage.local.set({
+        [COMMAND_SCOPE_STORAGE_KEY]: showAllCommands ? "all" : "site"
+      }).catch((error) => {
+        console.error("Site Command Palette scope failed to save:", error);
+      });
       refreshCommands();
       updateSearchPlaceholder();
       filterAndRender();
@@ -322,7 +331,6 @@
       formTitle: overlay.querySelector(".form-title"),
       saveButton: overlay.querySelector(".save-button")
     };
-    showAllCommands = false;
 
     overlay.addEventListener("click", handleOverlayClick);
     palette.search.addEventListener("input", filterAndRender);
@@ -574,13 +582,18 @@
     const command = commands.find((candidate) => candidate.id === id);
     if (!command) return;
 
+    const removedIndex = filteredItems.findIndex((item) => item.id === id);
+    const neighborId = removedIndex >= 0
+      ? filteredItems[removedIndex + 1]?.id ?? filteredItems[removedIndex - 1]?.id ?? null
+      : null;
+
     commandsByScope[command.scope] = (commandsByScope[command.scope] ?? [])
       .filter((candidate) => candidate.id !== id);
     if (commandsByScope[command.scope].length === 0) delete commandsByScope[command.scope];
     pruneUnusedSites();
     await storeCommandData();
     refreshCommands();
-    filterAndRender();
+    filterAndRender(neighborId);
   }
 
   function filterAndRender(preferredItemId = null) {
@@ -849,6 +862,16 @@
 
   function handleStorageChange(changes, areaName) {
     if (areaName !== "local") return;
+
+    if (changes[COMMAND_SCOPE_STORAGE_KEY]) {
+      const nextShowAllCommands = changes[COMMAND_SCOPE_STORAGE_KEY].newValue === "all";
+      if (nextShowAllCommands !== showAllCommands) {
+        showAllCommands = nextShowAllCommands;
+        refreshCommands();
+        updateSearchPlaceholder();
+        if (palette?.mode === "list") filterAndRender();
+      }
+    }
 
     if (changes[COMMANDS_STORAGE_KEY]) {
       commandsByScope = normalizeCommandsByScope(changes[COMMANDS_STORAGE_KEY].newValue);

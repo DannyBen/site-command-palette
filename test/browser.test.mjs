@@ -89,6 +89,22 @@ test("palette keyboard, theme, and settings flows work in Chromium", { timeout: 
       await accessibleNodeDomProperty(cdp, "searchbox", "Search commands", "placeholder"),
       "Search all commands"
     );
+    await press(cdp, "`", "Backquote", 192);
+    await waitFor(async () => !(await hasPalette(cdp)));
+    await openPalette(cdp);
+    assert.equal(
+      await accessibleNodeDomProperty(cdp, "searchbox", "Search commands", "placeholder"),
+      "Search all commands",
+      "the selected scope should survive closing and reopening the palette"
+    );
+    await cdp.send("Page.reload");
+    await waitFor(async () => evaluate(cdp, "document.readyState === 'complete'"));
+    await openPalette(cdp);
+    assert.equal(
+      await accessibleNodeDomProperty(cdp, "searchbox", "Search commands", "placeholder"),
+      "Search all commands",
+      "the selected scope should survive reloading the page"
+    );
     await press(cdp, "Tab", "Tab", 9);
     assert.equal(
       await accessibleNodeDomProperty(cdp, "searchbox", "Search commands", "placeholder"),
