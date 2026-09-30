@@ -10,6 +10,7 @@
     normalizeSettings,
     normalizeSites,
     normalizeUrl,
+    resolveAllCommands,
     resolveTheme,
     resolveCommandsForLocation,
     siteIdentity,
@@ -37,6 +38,7 @@
   let settings = normalizeSettings();
   let filteredItems = [];
   let selectedIndex = 0;
+  let showAllCommands = false;
   let opening = false;
   let editingCommandId = null;
   let editingCommandScope = null;
@@ -128,9 +130,16 @@
 
     if (palette.mode !== "list") return;
 
-    if (event.key === "Tab") {
+    if (
+      event.key === "Tab" &&
+      !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey
+    ) {
       event.preventDefault();
       event.stopPropagation();
+      showAllCommands = !showAllCommands;
+      refreshCommands();
+      updateSearchPlaceholder();
+      filterAndRender();
       palette.search.focus();
       return;
     }
@@ -173,7 +182,7 @@
     } else if (event.key === "Enter" && filteredItems.length > 0) {
       event.preventDefault();
       event.stopPropagation();
-      activateItem(filteredItems[selectedIndex]);
+      activateItem(filteredItems[selectedIndex], event.ctrlKey);
     }
   }
 
@@ -281,6 +290,7 @@
       formTitle: overlay.querySelector(".form-title"),
       saveButton: overlay.querySelector(".save-button")
     };
+    showAllCommands = false;
 
     overlay.addEventListener("click", handleOverlayClick);
     palette.search.addEventListener("input", filterAndRender);
@@ -389,6 +399,11 @@
 
   function updateSearchPlaceholder() {
     if (!palette) return;
+
+    if (showAllCommands) {
+      palette.search.placeholder = "Search all commands";
+      return;
+    }
 
     const siteName = siteNameForUrl(sitesByHostname, location, document.title);
     palette.search.placeholder = `Search ${siteName} commands`;
@@ -679,6 +694,12 @@
       hints.push(footerHint("Enter", selectedItem.type === "link" ? "Open" : "Run"));
     }
 
+    hints.push(footerHint("Tab", "Scope"));
+
+    if (selectedItem?.type === "link") {
+      hints.push(footerHint("Ctrl+Enter", "New tab"));
+    }
+
     hints.push(shortcutHint(settings.keyBindings.add, "add"));
 
     if (selectedItem?.type === "link") {
@@ -699,10 +720,16 @@
       ?.scrollIntoView({ block: "nearest" });
   }
 
-  async function activateItem(item) {
+  async function activateItem(item, openInNewTab = false) {
     if (!item) return;
 
     if (item.type === "link") {
+      if (openInNewTab) {
+        await chrome.runtime.sendMessage({ type: "open-tab", url: item.url });
+        closePalette();
+        return;
+      }
+
       location.href = item.url;
       return;
     }
@@ -825,7 +852,9 @@
   }
 
   function refreshCommands() {
-    commands = resolveCommandsForLocation(commandsByScope, location);
+    commands = showAllCommands
+      ? resolveAllCommands(commandsByScope)
+      : resolveCommandsForLocation(commandsByScope, location);
   }
 
   function pruneUnusedSites() {

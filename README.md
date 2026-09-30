@@ -14,6 +14,8 @@ yet published in the Chrome Web Store.
 - Fuzzy search with bold character highlighting and keyboard result selection.
 - Backtick opens the palette; Alt+Backtick also works from editable fields.
 - Arrow keys select a command, Enter activates it, and Escape clears or closes.
+- Tab toggles between commands in the current scope and all saved commands.
+- Ctrl+Enter opens the selected command in a new tab.
 - Default shortcuts use Alt+A to add, Alt+E to edit, and Alt+X to delete.
 - Activation and palette-action shortcuts are configurable in Settings.
 - Slash actions provide quick access to `/add`, `/theme`, and `/settings`.

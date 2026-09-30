@@ -449,6 +449,11 @@
     )) ?? null;
   }
 
+  function resolveAllCommands(commandsByScope) {
+    return Object.entries(commandsByScope)
+      .flatMap(([scope, commands]) => commands.map((command) => ({ ...command, scope })));
+  }
+
   function resolveCommandsForLocation(commandsByScope, locationValue) {
     const matchingCommands = Object.entries(commandsByScope)
       .filter(([scope]) => scopeMatches(scope, locationValue))
@@ -556,6 +561,7 @@
     normalizeSites,
     normalizeScope,
     normalizeUrl,
+    resolveAllCommands,
     resolveTheme,
     resolveCommandsForLocation,
     siteIdentity,

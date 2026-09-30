@@ -16,6 +16,10 @@ chrome.runtime.onInstalled.addListener(() => {
 
 chrome.runtime.onMessage.addListener((message) => {
   if (message?.type === "open-options") chrome.runtime.openOptionsPage();
+  if (message?.type === "open-tab") {
+    const url = globalThis.SiteCommandPaletteCore.normalizeUrl(message.url);
+    if (url) chrome.tabs.create({ url });
+  }
 });
 
 chrome.storage.onChanged.addListener((changes, areaName) => {

@@ -22,6 +22,7 @@ const {
   normalizeSettings,
   normalizeSites,
   normalizeUrl,
+  resolveAllCommands,
   resolveCommandsForLocation,
   resolveTheme,
   scopeMatches,
@@ -132,6 +133,26 @@ test("findCommandNameConflict checks page names within one destination site and 
     ),
     null
   );
+});
+
+test("resolveAllCommands includes commands from every scope", () => {
+  assert.deepEqual(resolveAllCommands({
+    "github.com": [{ id: "github", page: "Home", url: "https://github.com/" }],
+    "gitlab.com": [{ id: "gitlab", page: "Home", url: "https://gitlab.com/" }]
+  }), [
+    {
+      id: "github",
+      page: "Home",
+      url: "https://github.com/",
+      scope: "github.com"
+    },
+    {
+      id: "gitlab",
+      page: "Home",
+      url: "https://gitlab.com/",
+      scope: "gitlab.com"
+    }
+  ]);
 });
 
 test("resolveCommandsForLocation applies the most specific named override", () => {

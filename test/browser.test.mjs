@@ -83,7 +83,16 @@ test("palette keyboard, theme, and settings flows work in Chromium", { timeout: 
     assert.equal(
       await accessibleNodeFocused(cdp, "searchbox", "Search commands"),
       true,
-      "Tab should keep focus on search while the command list is shown"
+      "Tab should keep focus on search while changing command scope"
+    );
+    assert.equal(
+      await accessibleNodeDomProperty(cdp, "searchbox", "Search commands", "placeholder"),
+      "Search all commands"
+    );
+    await press(cdp, "Tab", "Tab", 9);
+    assert.equal(
+      await accessibleNodeDomProperty(cdp, "searchbox", "Search commands", "placeholder"),
+      "Search Command palette browser test commands"
     );
     const viewportHeight = await evaluate(cdp, "innerHeight");
     const edgeGap = Math.min(72, Math.max(16, viewportHeight * 0.12));
@@ -213,6 +222,13 @@ test("palette keyboard, theme, and settings flows work in Chromium", { timeout: 
       /Fixture › Zulu/,
       "the command matching the current page should be selected"
     );
+    await cdp.send("Input.insertText", { text: "External" });
+    await waitFor(async () => (await selectedOptionText(cdp)).includes("Github › External"));
+    const pageTargetCountBefore = await pageTargetCount(port);
+    await press(cdp, "Enter", "Enter", 13, 2);
+    await waitFor(async () => (await pageTargetCount(port)) > pageTargetCountBefore);
+    await waitFor(async () => !(await hasPalette(cdp)));
+    await openPalette(cdp);
     assert.equal(
       await accessibleNodeClosestStyle(
         cdp,
@@ -492,6 +508,12 @@ async function waitForPageTarget(port) {
       return false;
     }
   });
+}
+
+async function pageTargetCount(port) {
+  const response = await fetch(`http://127.0.0.1:${port}/json/list`);
+  const targets = await response.json();
+  return targets.filter((target) => target.type === "page").length;
 }
 
 async function waitForExtensionTarget(port, errors) {
