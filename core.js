@@ -149,25 +149,93 @@
 
     const needle = query.toLocaleLowerCase();
     const haystack = candidate.toLocaleLowerCase();
-    const indices = [];
-    let score = 0;
-    let needleIndex = 0;
-    let previousMatch = -2;
+    let exactState = null;
+    let exactIndex = haystack.indexOf(needle);
 
-    for (let index = 0; index < haystack.length && needleIndex < needle.length; index += 1) {
-      if (haystack[index] !== needle[needleIndex]) continue;
-
-      score += 1;
-      if (index === 0 || /[\s/_-]/.test(haystack[index - 1])) score += 4;
-      if (index === previousMatch + 1) score += 2;
-      previousMatch = index;
-      indices.push(index);
-      needleIndex += 1;
+    while (exactIndex !== -1) {
+      const indices = Array.from(
+        { length: needle.length },
+        (_, index) => exactIndex + index
+      );
+      const wordStartBonus = exactIndex === 0 || /[\s/_-]/.test(haystack[exactIndex - 1])
+        ? 4
+        : 0;
+      exactState = betterFuzzyState(exactState, {
+        score: needle.length + wordStartBonus + (needle.length - 1) * 2,
+        indices
+      });
+      exactIndex = haystack.indexOf(needle, exactIndex + 1);
     }
 
-    if (needleIndex !== needle.length) return null;
-    if (haystack.startsWith(needle)) score += 8;
-    return { score: score - haystack.length * 0.01, indices };
+    if (exactState) {
+      const prefixBonus = exactState.indices[0] === 0 ? 8 : 0;
+      return {
+        score: exactState.score + prefixBonus - haystack.length * 0.01,
+        indices: exactState.indices
+      };
+    }
+
+    let previousStates = Array(haystack.length).fill(null);
+
+    for (let needleIndex = 0; needleIndex < needle.length; needleIndex += 1) {
+      const currentStates = Array(haystack.length).fill(null);
+      let bestSeparatedState = null;
+
+      for (let index = 0; index < haystack.length; index += 1) {
+        if (index >= 2) {
+          bestSeparatedState = betterFuzzyState(
+            bestSeparatedState,
+            previousStates[index - 2]
+          );
+        }
+        if (haystack[index] !== needle[needleIndex]) continue;
+
+        let characterScore = 1;
+        if (index === 0 || /[\s/_-]/.test(haystack[index - 1])) characterScore += 4;
+
+        if (needleIndex === 0) {
+          currentStates[index] = { score: characterScore, indices: [index] };
+          continue;
+        }
+
+        const consecutiveState = index > 0 && previousStates[index - 1]
+          ? {
+              score: previousStates[index - 1].score + characterScore + 2,
+              indices: [...previousStates[index - 1].indices, index]
+            }
+          : null;
+        const separatedState = bestSeparatedState
+          ? {
+              score: bestSeparatedState.score + characterScore,
+              indices: [...bestSeparatedState.indices, index]
+            }
+          : null;
+        currentStates[index] = betterFuzzyState(consecutiveState, separatedState);
+      }
+
+      previousStates = currentStates;
+    }
+
+    const bestState = previousStates.reduce(betterFuzzyState, null);
+    if (!bestState) return null;
+
+    return {
+      score: bestState.score - haystack.length * 0.01,
+      indices: bestState.indices
+    };
+  }
+
+  function betterFuzzyState(left, right) {
+    if (!left) return right;
+    if (!right) return left;
+    if (left.score !== right.score) return left.score > right.score ? left : right;
+
+    for (let index = 0; index < left.indices.length; index += 1) {
+      if (left.indices[index] !== right.indices[index]) {
+        return left.indices[index] < right.indices[index] ? left : right;
+      }
+    }
+    return left;
   }
 
   function urlMatchesPage(urlValue, locationValue) {

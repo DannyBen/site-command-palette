@@ -168,6 +168,25 @@ test("fuzzyMatch returns matched character indices", () => {
   assert.ok(fuzzyMatch("bash", "Bashly").score > fuzzyMatch("bsh", "Bashly").score);
 });
 
+test("fuzzyMatch selects the strongest character sequence", () => {
+  assert.deepEqual(
+    fuzzyMatch("bash", "Github › Bashly").indices,
+    [9, 10, 11, 12]
+  );
+  assert.deepEqual(
+    fuzzyMatch("bash", "Bashly › Home").indices,
+    [0, 1, 2, 3]
+  );
+  assert.deepEqual(
+    fuzzyMatch("gitbash", "Github › Bashly").indices,
+    [0, 1, 2, 9, 10, 11, 12]
+  );
+  assert.deepEqual(
+    fuzzyMatch("gireba", "Github › Repo › Bashly").indices,
+    [0, 1, 9, 10, 16, 17]
+  );
+});
+
 test("middleEllipsis preserves both ends at the requested length", () => {
   assert.equal(middleEllipsis("short", 10), "short");
 
