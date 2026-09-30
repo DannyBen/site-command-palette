@@ -3,6 +3,7 @@
     findCommandNameConflict,
     formatKeyBinding,
     fuzzyMatch,
+    isSiteDisabled,
     keyBindingHasModifier,
     matchesKeyBinding,
     normalizeCommandsByScope,
@@ -26,10 +27,6 @@
     loadStorage
   } = globalThis.SiteCommandPaletteStorage;
   const HOST_ID = "site-command-palette-root";
-  const stylesheet = fetch(chrome.runtime.getURL("palette.css")).then((response) => {
-    if (!response.ok) throw new Error("Could not load palette styles");
-    return response.text();
-  });
 
   let palette = null;
   let commandsByScope = {};
@@ -44,27 +41,60 @@
   let editingCommandScope = null;
   let formSiteHostname = null;
   let siteNameEdited = false;
+  let stylesheet = null;
+  let systemTheme = null;
+  let enabled = false;
   const suppressedKeyups = new Set();
-  const systemTheme = matchMedia("(prefers-color-scheme: dark)");
 
-  window.addEventListener("keydown", handlePageKeydown, true);
-  window.addEventListener("keypress", suppressPageKeyEvent, true);
-  window.addEventListener("keyup", suppressPageKeyEvent, true);
-  window.addEventListener("hashchange", handlePageNavigation);
-  window.addEventListener("popstate", handlePageNavigation);
-  globalThis.navigation?.addEventListener("navigate", handlePageNavigation);
-  globalThis.navigation?.addEventListener("currententrychange", handlePageNavigation);
-  chrome.storage.onChanged.addListener(handleStorageChange);
-  systemTheme.addEventListener("change", applyTheme);
-  loadStoredSettings();
+  initialize();
 
-  async function loadStoredSettings() {
+  async function initialize() {
     try {
       const stored = await loadStorage();
       settings = stored[SETTINGS_STORAGE_KEY];
+      if (isSiteDisabled(settings, location)) return;
+
+      stylesheet = fetch(chrome.runtime.getURL("palette.css")).then((response) => {
+        if (!response.ok) throw new Error("Could not load palette styles");
+        return response.text();
+      });
+      systemTheme = matchMedia("(prefers-color-scheme: dark)");
+      enabled = true;
+      window.addEventListener("keydown", handlePageKeydown, true);
+      window.addEventListener("keypress", suppressPageKeyEvent, true);
+      window.addEventListener("keyup", suppressPageKeyEvent, true);
+      window.addEventListener("hashchange", handlePageNavigation);
+      window.addEventListener("popstate", handlePageNavigation);
+      globalThis.navigation?.addEventListener("navigate", handlePageNavigation);
+      globalThis.navigation?.addEventListener("currententrychange", handlePageNavigation);
+      chrome.storage.onChanged.addListener(handleStorageChange);
+      systemTheme.addEventListener("change", applyTheme);
     } catch (error) {
       console.error("Site Command Palette settings failed to load:", error);
     }
+  }
+
+  function disableCurrentSite() {
+    enabled = false;
+    opening = false;
+    window.removeEventListener("keydown", handlePageKeydown, true);
+    window.removeEventListener("keypress", suppressPageKeyEvent, true);
+    window.removeEventListener("keyup", suppressPageKeyEvent, true);
+    window.removeEventListener("hashchange", handlePageNavigation);
+    window.removeEventListener("popstate", handlePageNavigation);
+    globalThis.navigation?.removeEventListener("navigate", handlePageNavigation);
+    globalThis.navigation?.removeEventListener("currententrychange", handlePageNavigation);
+    chrome.storage.onChanged.removeListener(handleStorageChange);
+    systemTheme?.removeEventListener("change", applyTheme);
+    document.getElementById(HOST_ID)?.remove();
+    palette = null;
+    stylesheet = null;
+    systemTheme = null;
+    commandsByScope = {};
+    sitesByHostname = {};
+    commands = [];
+    filteredItems = [];
+    suppressedKeyups.clear();
   }
 
   function handlePageKeydown(event) {
@@ -195,6 +225,7 @@
   }
 
   async function openPalette() {
+    if (!enabled) return;
     opening = true;
     const existingHost = document.getElementById(HOST_ID);
     if (existingHost) existingHost.remove();
@@ -214,6 +245,7 @@
       console.error("Site Command Palette:", error);
       return;
     }
+    if (!enabled) return;
     overlay.className = "overlay";
     overlay.innerHTML = `
       <section class="palette" role="dialog" aria-modal="true" aria-label="Site command palette">
@@ -833,6 +865,10 @@
     if (!changes[SETTINGS_STORAGE_KEY]) return;
 
     settings = normalizeSettings(changes[SETTINGS_STORAGE_KEY].newValue);
+    if (isSiteDisabled(settings, location)) {
+      disableCurrentSite();
+      return;
+    }
     applyTheme();
     if (palette?.mode === "list" && palette.search.value.trim().startsWith("/")) {
       filterAndRender();

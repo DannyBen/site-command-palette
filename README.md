@@ -20,6 +20,7 @@ yet published in the Chrome Web Store.
 - Activation and palette-action shortcuts are configurable in Settings.
 - Slash actions provide quick access to `/add`, `/theme`, and `/settings`.
 - Light, Dark, and System themes with optional per-site overrides.
+- Exact hostnames can be disabled from Settings when the palette should not run.
 - Commands and preferences remain in local Chrome extension storage.
 - Optional automatic backups write versioned JSON snapshots to a folder you choose.
 - Page shortcuts are suppressed while the palette is open.

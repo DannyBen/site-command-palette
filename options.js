@@ -5,6 +5,7 @@
     formatKeyBinding,
     keyBindingFromEvent,
     keyBindingHasModifier,
+    normalizeHostname,
     normalizeSettings,
     resolveTheme
   } = globalThis.SiteCommandPaletteCore;
@@ -32,6 +33,11 @@
   const overrideList = document.getElementById("override-list");
   const emptyOverrides = document.getElementById("empty-overrides");
   const overrideCount = document.getElementById("override-count");
+  const disabledSiteForm = document.getElementById("disabled-site-form");
+  const disabledSiteInput = document.getElementById("disabled-site-input");
+  const disabledSiteList = document.getElementById("disabled-site-list");
+  const emptyDisabledSites = document.getElementById("empty-disabled-sites");
+  const disabledSiteCount = document.getElementById("disabled-site-count");
   const saveStatus = document.getElementById("save-status");
   const keyBindingList = document.getElementById("key-binding-list");
   const keyBindingMessage = document.getElementById("key-binding-message");
@@ -58,6 +64,9 @@
   globalTheme.addEventListener("change", saveGlobalTheme);
   overrideList.addEventListener("change", updateSiteTheme);
   overrideList.addEventListener("click", removeSiteTheme);
+  disabledSiteForm.addEventListener("submit", addDisabledSite);
+  disabledSiteInput.addEventListener("input", () => disabledSiteInput.setCustomValidity(""));
+  disabledSiteList.addEventListener("click", removeDisabledSite);
   systemTheme.addEventListener("change", applyTheme);
   chrome.storage.onChanged.addListener(handleStorageChange);
   keyBindingList.addEventListener("click", beginKeyBindingCapture);
@@ -83,6 +92,7 @@
     globalTheme.value = settings.theme;
     applyTheme();
     renderSiteThemes();
+    renderDisabledSites();
     renderKeyBindings();
   }
 
@@ -106,7 +116,7 @@
     const select = document.createElement("select");
     const remove = document.createElement("button");
 
-    row.className = "override";
+    row.className = "override settings-row";
     name.textContent = hostname;
 
     select.dataset.hostname = hostname;
@@ -123,6 +133,32 @@
     remove.textContent = "Remove override";
 
     row.append(name, select, remove);
+    return row;
+  }
+
+  function renderDisabledSites() {
+    const hostnames = [...settings.disabledHostnames].sort((left, right) => (
+      left.localeCompare(right)
+    ));
+
+    disabledSiteList.replaceChildren(...hostnames.map(createDisabledSiteRow));
+    disabledSiteList.hidden = hostnames.length === 0;
+    emptyDisabledSites.hidden = hostnames.length > 0;
+    disabledSiteCount.textContent = `${hostnames.length} ${hostnames.length === 1 ? "site" : "sites"}`;
+  }
+
+  function createDisabledSiteRow(hostname) {
+    const row = document.createElement("div");
+    const name = document.createElement("strong");
+    const remove = document.createElement("button");
+
+    row.className = "settings-row";
+    name.textContent = hostname;
+    remove.type = "button";
+    remove.dataset.removeDisabledHostname = hostname;
+    remove.setAttribute("aria-label", `Remove ${hostname} from disabled sites`);
+    remove.textContent = "Remove";
+    row.append(name, remove);
     return row;
   }
 
@@ -248,6 +284,38 @@
 
     delete settings.siteThemes[button.dataset.removeHostname];
     await storeSettings("Site override removed");
+  }
+
+  async function addDisabledSite(event) {
+    event.preventDefault();
+
+    const hostname = normalizeHostname(disabledSiteInput.value);
+    if (!hostname) {
+      disabledSiteInput.setCustomValidity("Enter a valid HTTP or HTTPS hostname or URL.");
+      disabledSiteInput.reportValidity();
+      return;
+    }
+    if (settings.disabledHostnames.includes(hostname)) {
+      disabledSiteInput.setCustomValidity(`${hostname} is already disabled.`);
+      disabledSiteInput.reportValidity();
+      return;
+    }
+
+    disabledSiteInput.setCustomValidity("");
+    settings.disabledHostnames.push(hostname);
+    await storeSettings("Disabled site added");
+    disabledSiteInput.value = "";
+    disabledSiteInput.focus();
+  }
+
+  async function removeDisabledSite(event) {
+    const button = event.target.closest("button[data-remove-disabled-hostname]");
+    if (!button) return;
+
+    settings.disabledHostnames = settings.disabledHostnames.filter(
+      (hostname) => hostname !== button.dataset.removeDisabledHostname
+    );
+    await storeSettings("Disabled site removed");
   }
 
   async function storeSettings(message) {
@@ -492,7 +560,8 @@
     const storedSettings = data[SETTINGS_STORAGE_KEY];
 
     return commandCount > 0 || storedSettings.theme !== "light" ||
-      Object.keys(storedSettings.siteThemes).length > 0;
+      Object.keys(storedSettings.siteThemes).length > 0 ||
+      storedSettings.disabledHostnames.length > 0;
   }
 
   function showBackupMessage(message, isError = false) {

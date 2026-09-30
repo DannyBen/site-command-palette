@@ -32,6 +32,19 @@
     }
   }
 
+  function normalizeHostname(value) {
+    const input = typeof value === "string" ? value.trim() : "";
+    if (!input) return null;
+
+    try {
+      const url = new URL(input.includes("://") ? input : `https://${input}`);
+      if (!["http:", "https:"].includes(url.protocol) || url.hostname.includes("*")) return null;
+      return url.hostname.toLocaleLowerCase();
+    } catch {
+      return null;
+    }
+  }
+
   function siteIdentity(value) {
     try {
       const url = new URL(value?.href ?? value);
@@ -346,6 +359,11 @@
     const storedSettings = value && typeof value === "object" ? value : {};
     const storedSiteThemes = storedSettings.siteThemes;
     const siteThemes = {};
+    const disabledHostnames = [...new Set(
+      (Array.isArray(storedSettings.disabledHostnames) ? storedSettings.disabledHostnames : [])
+        .map(normalizeHostname)
+        .filter(Boolean)
+    )];
 
     if (storedSiteThemes && typeof storedSiteThemes === "object") {
       for (const [hostname, theme] of Object.entries(storedSiteThemes)) {
@@ -359,6 +377,7 @@
         ? storedSettings.theme
         : "light",
       siteThemes,
+      disabledHostnames,
       keyBindings: normalizeKeyBindings(storedSettings.keyBindings)
     };
   }
@@ -537,6 +556,11 @@
     return selectedTheme;
   }
 
+  function isSiteDisabled(settings, locationValue) {
+    const hostname = normalizeHostname(locationValue?.href ?? locationValue);
+    return hostname !== null && settings.disabledHostnames.includes(hostname);
+  }
+
   const api = Object.freeze({
     COMMANDS_STORAGE_KEY,
     DEFAULT_KEY_BINDINGS,
@@ -551,10 +575,12 @@
     fuzzyMatch,
     keyBindingFromEvent,
     keyBindingHasModifier,
+    isSiteDisabled,
     matchesKeyBinding,
     migrateStorage,
     middleEllipsis,
     normalizeCommandsByScope,
+    normalizeHostname,
     normalizeKeyBinding,
     normalizeKeyBindings,
     normalizeSettings,

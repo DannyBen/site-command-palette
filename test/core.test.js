@@ -12,12 +12,14 @@ const {
   formatBackupDate,
   formatKeyBinding,
   fuzzyMatch,
+  isSiteDisabled,
   keyBindingFromEvent,
   keyBindingHasModifier,
   matchesKeyBinding,
   migrateStorage,
   middleEllipsis,
   normalizeCommandsByScope,
+  normalizeHostname,
   normalizeScope,
   normalizeSettings,
   normalizeSites,
@@ -38,6 +40,14 @@ test("normalizeUrl accepts HTTP URLs and rejects unsafe protocols", () => {
   assert.equal(normalizeUrl("http://example.com"), "http://example.com/");
   assert.equal(normalizeUrl("javascript:alert(1)"), null);
   assert.equal(normalizeUrl("not a URL"), null);
+});
+
+test("normalizeHostname accepts hostnames and URLs without broad patterns", () => {
+  assert.equal(normalizeHostname(" Example.COM/path "), "example.com");
+  assert.equal(normalizeHostname("https://App.Example.com/settings"), "app.example.com");
+  assert.equal(normalizeHostname("localhost:3000"), "localhost");
+  assert.equal(normalizeHostname("*.example.com"), null);
+  assert.equal(normalizeHostname("javascript:alert(1)"), null);
 });
 
 test("normalizeScope keeps compact hostname and path glob patterns", () => {
@@ -291,6 +301,7 @@ test("normalizeSettings supplies defaults and discards invalid values", () => {
     version: 1,
     theme: "light",
     siteThemes: {},
+    disabledHostnames: [],
     keyBindings: { ...DEFAULT_KEY_BINDINGS }
   });
   assert.deepEqual(
@@ -301,6 +312,7 @@ test("normalizeSettings supplies defaults and discards invalid values", () => {
         "light.example": "light",
         "invalid.example": "blue"
       },
+      disabledHostnames: ["Example.com", "https://app.example.com/path", "Example.com", "*"],
       keyBindings: {
         toggleAlternate: null,
         add: "Ctrl+Shift+KeyK",
@@ -314,6 +326,7 @@ test("normalizeSettings supplies defaults and discards invalid values", () => {
         "dark.example": "dark",
         "light.example": "light"
       },
+      disabledHostnames: ["example.com", "app.example.com"],
       keyBindings: {
         ...DEFAULT_KEY_BINDINGS,
         toggleAlternate: null,
@@ -323,6 +336,14 @@ test("normalizeSettings supplies defaults and discards invalid values", () => {
   );
 
   assert.equal(normalizeSettings({ theme: "system" }).theme, "system");
+});
+
+test("isSiteDisabled matches exact normalized hostnames", () => {
+  const settings = normalizeSettings({ disabledHostnames: ["app.example.com"] });
+
+  assert.equal(isSiteDisabled(settings, "https://app.example.com/page"), true);
+  assert.equal(isSiteDisabled(settings, "https://example.com/"), false);
+  assert.equal(isSiteDisabled(settings, "https://other.app.example.com/"), false);
 });
 
 test("resolveTheme gives site overrides precedence and resolves System", () => {
@@ -367,6 +388,7 @@ test("migrateStorage upgrades legacy data and normalizes saved commands", () => 
     version: 1,
     theme: "dark",
     siteThemes: { "example.com": "light" },
+    disabledHostnames: [],
     keyBindings: { ...DEFAULT_KEY_BINDINGS }
   });
 });

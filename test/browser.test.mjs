@@ -445,6 +445,36 @@ test("palette keyboard, theme, and settings flows work in Chromium", { timeout: 
         select.dispatchEvent(new Event('change', { bubbles: true }));
       })()`);
       await waitFor(async () => (await paletteTheme(cdp)) === "light");
+
+      await evaluate(optionsCdp, `(() => {
+        const input = document.getElementById('disabled-site-input');
+        input.value = 'http://127.0.0.1:${address.port}/somewhere';
+        document.getElementById('disabled-site-form').requestSubmit();
+      })()`);
+      await waitFor(async () => evaluate(
+        optionsCdp,
+        `document.querySelector('[data-remove-disabled-hostname="127.0.0.1"]')?.textContent === 'Remove'`
+      ));
+      assert.equal(
+        await evaluate(optionsCdp, "document.getElementById('disabled-site-count').textContent"),
+        "1 site"
+      );
+      await waitFor(async () => !(await hasPalette(cdp)));
+      await press(cdp, "`", "Backquote", 192);
+      assert.equal(await hasPalette(cdp), false, "disabled sites should not intercept shortcuts");
+
+      await evaluate(
+        optionsCdp,
+        `document.querySelector('[data-remove-disabled-hostname="127.0.0.1"]').click()`
+      );
+      await waitFor(async () => evaluate(
+        optionsCdp,
+        "document.getElementById('empty-disabled-sites').hidden === false"
+      ));
+      await cdp.send("Page.reload");
+      await waitFor(async () => evaluate(cdp, "document.readyState === 'complete'"));
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      await openPalette(cdp);
     } finally {
       optionsCdp.close();
     }
@@ -599,8 +629,11 @@ function hasPalette(cdp) {
 }
 
 async function openPalette(cdp) {
-  await press(cdp, "`", "Backquote", 192);
-  await waitFor(async () => hasPalette(cdp));
+  await waitFor(async () => {
+    if (await hasPalette(cdp)) return true;
+    await press(cdp, "`", "Backquote", 192);
+    return hasPalette(cdp);
+  });
 }
 
 function paletteTheme(cdp) {

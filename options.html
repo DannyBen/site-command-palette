@@ -9,11 +9,19 @@
   <body>
     <main>
       <header class="page-heading">
-        <p>Site Command Palette <span id="extension-version"></span></p>
-        <h1>Settings</h1>
+        <div>
+          <p>Site Command Palette <span id="extension-version"></span></p>
+          <h1>Settings</h1>
+        </div>
+        <nav class="section-navigation" aria-label="Settings sections">
+          <a href="#theme-settings">Theme</a>
+          <a href="#key-binding-settings">Key bindings</a>
+          <a href="#backup-settings">Backup</a>
+          <a href="#disabled-site-settings">Disabled sites</a>
+        </nav>
       </header>
 
-      <section class="panel" aria-labelledby="theme-heading">
+      <section id="theme-settings" class="panel" aria-labelledby="theme-heading">
         <div class="section-heading">
           <div>
             <h2 id="theme-heading">Theme</h2>
@@ -37,12 +45,12 @@
             </div>
             <span id="override-count" aria-live="polite"></span>
           </div>
-          <div id="override-list" class="override-list"></div>
+          <div id="override-list" class="override-list settings-list"></div>
           <p id="empty-overrides" class="empty">No site theme overrides.</p>
         </div>
       </section>
 
-      <section class="panel" aria-labelledby="key-bindings-heading">
+      <section id="key-binding-settings" class="panel" aria-labelledby="key-bindings-heading">
         <div class="section-heading">
           <div>
             <h2 id="key-bindings-heading">Key bindings</h2>
@@ -91,7 +99,7 @@
         </div>
       </section>
 
-      <section class="panel" aria-labelledby="backup-heading">
+      <section id="backup-settings" class="panel" aria-labelledby="backup-heading">
         <div class="section-heading">
           <div>
             <h2 id="backup-heading">Automatic backup</h2>
@@ -142,6 +150,32 @@
             Restoring replaces all current commands and settings.
           </p>
           <p id="backup-message" class="backup-message" role="status" aria-live="polite"></p>
+        </div>
+      </section>
+
+      <section id="disabled-site-settings" class="panel" aria-labelledby="disabled-sites-heading">
+        <div class="section-heading">
+          <div>
+            <h2 id="disabled-sites-heading">Disabled sites</h2>
+            <p>
+              The palette and its interactions do not run on these sites.
+              Reload open pages after changing this list.
+            </p>
+          </div>
+          <span id="disabled-site-count" class="state-badge" aria-live="polite"></span>
+        </div>
+
+        <div class="settings-group">
+          <form id="disabled-site-form" class="site-entry">
+            <label for="disabled-site-input">
+              <span>Hostname or URL</span>
+              <input id="disabled-site-input" required autocomplete="off" placeholder="example.com">
+            </label>
+            <button type="submit">Add site</button>
+          </form>
+
+          <div id="disabled-site-list" class="settings-list"></div>
+          <p id="empty-disabled-sites" class="empty">No disabled sites.</p>
         </div>
       </section>
 
