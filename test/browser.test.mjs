@@ -410,6 +410,63 @@ test("palette keyboard, theme, and settings flows work in Chromium", { timeout: 
         "10",
         "backup history should default to ten previous versions"
       );
+      await evaluate(optionsCdp, `(() => {
+        URL.createObjectURL = (blob) => {
+          blob.text().then((text) => { window.downloadedBackupText = text; });
+          return 'blob:manual-backup-test';
+        };
+        HTMLAnchorElement.prototype.click = function() {
+          window.downloadedBackupName = this.download;
+        };
+        document.getElementById('download-backup').click();
+      })()`);
+      await waitFor(async () => evaluate(
+        optionsCdp,
+        "document.getElementById('manual-backup-message').textContent === 'Backup downloaded.' && Boolean(window.downloadedBackupText)"
+      ));
+      assert.match(
+        await evaluate(optionsCdp, "window.downloadedBackupName"),
+        /^site-command-palette-backup-\d{4}-\d{2}-\d{2}T.+Z\.json$/
+      );
+      assert.equal(
+        await evaluate(optionsCdp, "JSON.parse(window.downloadedBackupText).format"),
+        "site-command-palette-backup"
+      );
+
+      await evaluate(optionsCdp, `(() => {
+        const backup = JSON.parse(window.downloadedBackupText);
+        backup.data.settings.theme = 'dark';
+        const transfer = new DataTransfer();
+        transfer.items.add(new File(
+          [JSON.stringify(backup)],
+          'manual-backup.json',
+          { type: 'application/json' }
+        ));
+        const input = document.getElementById('backup-file');
+        input.files = transfer.files;
+        window.confirm = () => true;
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+      })()`);
+      await waitFor(async () => evaluate(
+        optionsCdp,
+        "document.getElementById('manual-backup-message').textContent === 'Backup restored.' && document.getElementById('global-theme').value === 'dark'"
+      ));
+
+      await evaluate(optionsCdp, `(() => {
+        const transfer = new DataTransfer();
+        transfer.items.add(new File(
+          [window.downloadedBackupText],
+          'manual-backup.json',
+          { type: 'application/json' }
+        ));
+        const input = document.getElementById('backup-file');
+        input.files = transfer.files;
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+      })()`);
+      await waitFor(async () => evaluate(
+        optionsCdp,
+        "document.getElementById('manual-backup-message').textContent === 'Backup restored.' && document.getElementById('global-theme').value === 'light'"
+      ));
       assert.equal(
         await evaluate(optionsCdp, "document.querySelector('[data-key-binding=\"add\"]').textContent"),
         "Alt + A"

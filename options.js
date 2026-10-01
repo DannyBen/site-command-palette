@@ -5,6 +5,7 @@
     formatKeyBinding,
     keyBindingFromEvent,
     keyBindingHasModifier,
+    migrateStorage,
     normalizeHostname,
     normalizeSettings,
     resolveTheme
@@ -15,15 +16,19 @@
     loadStorage
   } = globalThis.SiteCommandPaletteStorage;
   const {
+    backupDownloadName,
     clearBackupDirectory,
+    createBackupDocument,
     getBackupState,
     inspectBackupDirectory,
+    parseBackupDocument,
     preserveSnapshot,
     queryBackupPermission,
     readBackupFile,
     requestBackupPermission,
     setBackupDirectory,
     setHistoryLimit,
+    storageDataEqual,
     writeBackup
   } = globalThis.SiteCommandPaletteBackup;
   const systemTheme = matchMedia("(prefers-color-scheme: dark)");
@@ -42,6 +47,10 @@
   const keyBindingList = document.getElementById("key-binding-list");
   const keyBindingMessage = document.getElementById("key-binding-message");
   const resetKeyBindings = document.getElementById("reset-key-bindings");
+  const downloadBackup = document.getElementById("download-backup");
+  const restoreBackupFile = document.getElementById("restore-backup-file");
+  const backupFile = document.getElementById("backup-file");
+  const manualBackupMessage = document.getElementById("manual-backup-message");
   const backupState = document.getElementById("backup-state");
   const backupFolder = document.getElementById("backup-folder");
   const lastBackup = document.getElementById("last-backup");
@@ -72,6 +81,9 @@
   keyBindingList.addEventListener("click", beginKeyBindingCapture);
   resetKeyBindings.addEventListener("click", restoreDefaultKeyBindings);
   document.addEventListener("keydown", captureKeyBinding, true);
+  downloadBackup.addEventListener("click", downloadManualBackup);
+  restoreBackupFile.addEventListener("click", chooseManualBackupFile);
+  backupFile.addEventListener("change", restoreManualBackup);
   chooseBackupFolder.addEventListener("click", chooseFolder);
   backupNow.addEventListener("click", runManualBackup);
   restoreBackup.addEventListener("click", restoreFromBackup);
@@ -325,6 +337,58 @@
     showStatus(message);
   }
 
+  async function downloadManualBackup() {
+    clearManualBackupMessage();
+
+    try {
+      const backup = createBackupDocument(await loadStorage());
+      const url = URL.createObjectURL(new Blob(
+        [`${JSON.stringify(backup, null, 2)}\n`],
+        { type: "application/json" }
+      ));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = backupDownloadName(backup.exportedAt);
+      document.body.append(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 0);
+      showManualBackupMessage("Backup downloaded.");
+    } catch (error) {
+      showManualBackupMessage(error.message, true);
+    }
+  }
+
+  function chooseManualBackupFile() {
+    backupFile.value = "";
+    backupFile.click();
+  }
+
+  async function restoreManualBackup() {
+    clearManualBackupMessage();
+    const [file] = backupFile.files;
+    if (!file) return;
+
+    try {
+      const data = parseBackupDocument(await file.text(), migrateStorage);
+      const currentData = await loadStorage();
+      if (storageDataEqual(data, currentData)) {
+        showManualBackupMessage("Current data already matches this backup.");
+        return;
+      }
+      if (!confirm("Replace all current commands and settings with the selected backup?")) return;
+      if (hasUserData(currentData)) await preserveSnapshot(currentData);
+      await chrome.storage.local.set(data);
+      showManualBackupMessage("Backup restored.");
+      await loadSettings();
+      await renderBackupState();
+    } catch (error) {
+      showManualBackupMessage(error.message, true);
+    } finally {
+      backupFile.value = "";
+    }
+  }
+
   function handleStorageChange(changes, areaName) {
     if (areaName !== "local" || !changes[SETTINGS_STORAGE_KEY]) return;
     settings = normalizeSettings(changes[SETTINGS_STORAGE_KEY].newValue);
@@ -572,5 +636,15 @@
   function clearBackupMessage() {
     backupMessage.textContent = "";
     delete backupMessage.dataset.status;
+  }
+
+  function showManualBackupMessage(message, isError = false) {
+    manualBackupMessage.textContent = message;
+    manualBackupMessage.dataset.status = isError ? "error" : "success";
+  }
+
+  function clearManualBackupMessage() {
+    manualBackupMessage.textContent = "";
+    delete manualBackupMessage.dataset.status;
   }
 })();

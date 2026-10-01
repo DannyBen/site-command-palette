@@ -4,6 +4,7 @@ const assert = require("node:assert/strict");
 const { migrateStorage } = require("../core.js");
 const {
   BACKUP_FILE_NAME,
+  backupDownloadName,
   createBackupDocument,
   inspectBackupDirectory,
   parseBackupDocument,
@@ -25,6 +26,10 @@ test("backup documents round-trip normalized extension data", async () => {
   assert.equal(document.format, "site-command-palette-backup");
   assert.equal(document.version, 1);
   assert.equal(document.exportedAt, "2026-09-29T12:00:00.000Z");
+  assert.equal(
+    backupDownloadName(document.exportedAt),
+    "site-command-palette-backup-2026-09-29T12-00-00-000Z.json"
+  );
   assert.deepEqual(parseBackupDocument(JSON.stringify(document), migrateStorage), data);
   assert.deepEqual(
     await readBackupFile({

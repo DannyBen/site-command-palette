@@ -102,7 +102,26 @@
       <section id="backup-settings" class="panel" aria-labelledby="backup-heading">
         <div class="section-heading">
           <div>
-            <h2 id="backup-heading">Automatic backup</h2>
+            <h2 id="backup-heading">Manual backup</h2>
+            <p>Download or restore a JSON backup without selecting a folder.</p>
+          </div>
+        </div>
+
+        <div class="settings-group">
+          <div class="button-row">
+            <button id="download-backup" type="button" class="primary-button">Download backup</button>
+            <button id="restore-backup-file" type="button">Restore from file</button>
+            <input id="backup-file" type="file" accept=".json,application/json" hidden>
+          </div>
+          <p class="secondary-text">Restoring replaces all current commands and settings.</p>
+          <p id="manual-backup-message" class="backup-message" role="status" aria-live="polite"></p>
+        </div>
+      </section>
+
+      <section id="automatic-backup-settings" class="panel" aria-labelledby="automatic-backup-heading">
+        <div class="section-heading">
+          <div>
+            <h2 id="automatic-backup-heading">Automatic backup</h2>
             <p>Keep a JSON backup in a folder you choose on this computer.</p>
           </div>
           <p id="backup-state" class="state-badge">Not configured</p>

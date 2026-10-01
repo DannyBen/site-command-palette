@@ -19,6 +19,11 @@
     };
   }
 
+  function backupDownloadName(exportedAt) {
+    const timestamp = String(exportedAt).replace(/[:.]/g, "-");
+    return `site-command-palette-backup-${timestamp}.json`;
+  }
+
   function parseBackupDocument(value, migrateStorage) {
     const document = typeof value === "string" ? JSON.parse(value) : value;
 
@@ -327,6 +332,7 @@
   const api = Object.freeze({
     BACKUP_FILE_NAME,
     DEFAULT_HISTORY_LIMIT,
+    backupDownloadName,
     clearBackupDirectory,
     createBackupDocument,
     getBackupState,
