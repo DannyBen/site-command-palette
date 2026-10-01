@@ -355,6 +355,7 @@
     overlay.querySelector(".cancel-button").addEventListener("click", showCommandList);
     palette.addView.addEventListener("submit", saveCommand);
 
+    updateSearchPlaceholder();
     const stored = await loadStorage();
     commandsByScope = stored[COMMANDS_STORAGE_KEY];
     sitesByHostname = stored[SITES_STORAGE_KEY];
