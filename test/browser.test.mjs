@@ -905,7 +905,9 @@ async function selectedOptionText(cdp) {
       property.name === "selected" && property.value?.value === true
     ))
   ));
-  assert.ok(node?.backendDOMNodeId, "a selected option should be accessible");
+  // The command list is hidden while an asynchronous save is still pending.
+  // Let waitFor retry until a selected option is accessible again.
+  if (!node?.backendDOMNodeId) return "";
 
   const { object } = await cdp.send("DOM.resolveNode", {
     backendNodeId: node.backendDOMNodeId
