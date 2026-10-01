@@ -150,7 +150,9 @@
       event.preventDefault();
       event.stopPropagation();
 
-      if (palette.mode === "add") {
+      if (!palette.message.hidden) {
+        clearListMessage();
+      } else if (palette.mode === "add") {
         showCommandList();
       } else if (palette.search.value) {
         palette.search.value = "";
@@ -170,6 +172,7 @@
     ) {
       event.preventDefault();
       event.stopPropagation();
+      clearListMessage();
       showAllCommands = !showAllCommands;
       chrome.storage.local.set({
         [COMMAND_SCOPE_STORAGE_KEY]: showAllCommands ? "all" : "site"
@@ -265,7 +268,10 @@
             <input class="search" type="search" autocomplete="off" spellcheck="false"
               aria-label="Search commands" placeholder="Search commands">
           </header>
-          <div class="commands" role="listbox" aria-label="Commands"></div>
+          <div class="command-area">
+            <div class="commands" role="listbox" aria-label="Commands"></div>
+            <p class="message" role="alert" hidden></p>
+          </div>
           <footer></footer>
         </div>
         <form class="add-view" hidden>
@@ -323,6 +329,7 @@
       addView: overlay.querySelector(".add-view"),
       search: overlay.querySelector(".search"),
       commandList: overlay.querySelector(".commands"),
+      message: overlay.querySelector(".message"),
       footer: overlay.querySelector("footer"),
       siteName: overlay.querySelector(".site-name"),
       pageName: overlay.querySelector(".page-name"),
@@ -336,7 +343,11 @@
     };
 
     overlay.addEventListener("click", handleOverlayClick);
-    palette.search.addEventListener("input", filterAndRender);
+    palette.search.addEventListener("input", () => {
+      clearListMessage();
+      filterAndRender();
+    });
+    palette.message.addEventListener("click", clearListMessage);
     palette.siteName.addEventListener("input", () => { siteNameEdited = true; });
     palette.url.addEventListener("input", updateFormSiteFromUrl);
     palette.scopePattern.addEventListener("input", updateScopePresetState);
@@ -398,6 +409,7 @@
   }
 
   function showAddForm() {
+    clearListMessage();
     editingCommandId = null;
     editingCommandScope = null;
     palette.mode = "add";
@@ -418,6 +430,7 @@
   }
 
   function showEditForm(command) {
+    clearListMessage();
     editingCommandId = command.id;
     editingCommandScope = command.scope;
     palette.mode = "add";
@@ -559,30 +572,45 @@
       return;
     }
 
-    const hostname = siteIdentity(url);
-    sitesByHostname[hostname] = { name: siteName };
+    const previousCommandsByScope = commandsByScope;
+    const previousSitesByHostname = sitesByHostname;
+    commandsByScope = { ...commandsByScope };
+    sitesByHostname = { ...sitesByHostname };
 
-    if (editingCommandId) {
-      const previousCommands = commandsByScope[editingCommandScope] ?? [];
-      commandsByScope[editingCommandScope] = previousCommands.filter(
-        (command) => command.id !== editingCommandId
-      );
-      if (commandsByScope[editingCommandScope].length === 0) {
-        delete commandsByScope[editingCommandScope];
+    try {
+      const hostname = siteIdentity(url);
+      sitesByHostname[hostname] = { name: siteName };
+
+      if (editingCommandId) {
+        const previousCommands = commandsByScope[editingCommandScope] ?? [];
+        commandsByScope[editingCommandScope] = previousCommands.filter(
+          (command) => command.id !== editingCommandId
+        );
+        if (commandsByScope[editingCommandScope].length === 0) {
+          delete commandsByScope[editingCommandScope];
+        }
+        commandsByScope[scope] = [
+          ...(commandsByScope[scope] ?? []),
+          { id: editingCommandId, page, url }
+        ];
+      } else {
+        commandsByScope[scope] = [
+          ...(commandsByScope[scope] ?? []),
+          { id: crypto.randomUUID(), page, url }
+        ];
       }
-      commandsByScope[scope] = [
-        ...(commandsByScope[scope] ?? []),
-        { id: editingCommandId, page, url }
-      ];
-    } else {
-      commandsByScope[scope] = [
-        ...(commandsByScope[scope] ?? []),
-        { id: crypto.randomUUID(), page, url }
-      ];
+      pruneUnusedSites();
+      await storeCommandData();
+    } catch (error) {
+      commandsByScope = previousCommandsByScope;
+      sitesByHostname = previousSitesByHostname;
+      if (palette) setError("Could not save the command. Try again.");
+      console.error("Site Command Palette command failed to save:", error);
+      return;
     }
-    pruneUnusedSites();
-    await storeCommandData();
+
     refreshCommands();
+    if (!palette) return;
     palette.search.value = "";
     showCommandList();
     filterAndRender(editedCommandId);
@@ -597,11 +625,28 @@
       ? filteredItems[removedIndex + 1]?.id ?? filteredItems[removedIndex - 1]?.id ?? null
       : null;
 
-    commandsByScope[command.scope] = (commandsByScope[command.scope] ?? [])
-      .filter((candidate) => candidate.id !== id);
+    const previousCommandsByScope = commandsByScope;
+    const previousSitesByHostname = sitesByHostname;
+    commandsByScope = {
+      ...commandsByScope,
+      [command.scope]: (commandsByScope[command.scope] ?? [])
+        .filter((candidate) => candidate.id !== id)
+    };
+    sitesByHostname = { ...sitesByHostname };
     if (commandsByScope[command.scope].length === 0) delete commandsByScope[command.scope];
-    pruneUnusedSites();
-    await storeCommandData();
+
+    try {
+      pruneUnusedSites();
+      await storeCommandData();
+    } catch (error) {
+      commandsByScope = previousCommandsByScope;
+      sitesByHostname = previousSitesByHostname;
+      if (palette) showListMessage("Could not delete the command. Try again.");
+      console.error("Site Command Palette command failed to delete:", error);
+      return;
+    }
+
+    clearListMessage();
     refreshCommands();
     filterAndRender(neighborId);
   }
@@ -966,6 +1011,17 @@
   function setError(message) {
     palette.error.textContent = message;
     palette.error.hidden = !message;
+  }
+
+  function showListMessage(message) {
+    palette.message.textContent = message;
+    palette.message.hidden = false;
+  }
+
+  function clearListMessage() {
+    if (!palette) return;
+    palette.message.textContent = "";
+    palette.message.hidden = true;
   }
 
   function escapeHtml(value) {

@@ -18,6 +18,7 @@
   --focus-ring-color: rgb(37 99 235 / 28%);
   --action-focus-ring-color: rgb(31 136 61 / 22%);
   --danger-color: #b91c1c;
+  --danger-background-color: #fee2e2;
   --border-color: #d4d4d8;
   --overlay-background-color: rgb(24 24 27 / 24%);
   --normal-gap: 16px;
@@ -25,6 +26,7 @@
   --panel-radius: 12px;
   --control-radius: 7px;
   --panel-shadow: 0 24px 80px rgb(24 24 27 / 18%);
+  --message-shadow: 0 4px 12px rgb(24 24 27 / 16%);
 
   all: initial;
   position: fixed;
@@ -56,9 +58,11 @@
   --focus-ring-color: rgb(96 165 250 / 30%);
   --action-focus-ring-color: rgb(46 160 67 / 28%);
   --danger-color: #fca5a5;
+  --danger-background-color: #3a1d1d;
   --border-color: #3f3f46;
   --overlay-background-color: rgb(0 0 0 / 58%);
   --panel-shadow: 0 24px 80px rgb(0 0 0 / 55%);
+  --message-shadow: 0 4px 12px rgb(0 0 0 / 35%);
 
   color-scheme: dark;
 }
@@ -163,7 +167,16 @@ button {
   }
 }
 
+.command-area {
+  position: relative;
+  display: flex;
+  min-height: 0;
+  overflow: hidden;
+}
+
 .commands {
+  flex: 1;
+  width: 100%;
   min-height: 0;
   overflow-y: auto;
   padding: var(--small-gap);
@@ -184,6 +197,28 @@ button {
   &::-webkit-scrollbar-button {
     display: none;
   }
+}
+
+.message {
+  position: absolute;
+  top: var(--small-gap);
+  left: 50%;
+  z-index: 1;
+  width: max-content;
+  max-width: calc(100% - var(--normal-gap) - var(--normal-gap));
+  margin: 0;
+  padding: 8px 12px;
+  transform: translateX(-50%);
+  border: 1px solid var(--danger-color);
+  border-radius: var(--control-radius);
+  background: var(--danger-background-color);
+  box-shadow: var(--message-shadow);
+  color: var(--danger-color);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  text-align: center;
+  cursor: pointer;
 }
 
 .command-divider {
