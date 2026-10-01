@@ -67,6 +67,7 @@
       window.addEventListener("keydown", handlePageKeydown, true);
       window.addEventListener("keypress", suppressPageKeyEvent, true);
       window.addEventListener("keyup", suppressPageKeyEvent, true);
+      window.addEventListener("blur", clearSuppressedKeys);
       window.addEventListener("hashchange", handlePageNavigation);
       window.addEventListener("popstate", handlePageNavigation);
       globalThis.navigation?.addEventListener("navigate", handlePageNavigation);
@@ -84,6 +85,7 @@
     window.removeEventListener("keydown", handlePageKeydown, true);
     window.removeEventListener("keypress", suppressPageKeyEvent, true);
     window.removeEventListener("keyup", suppressPageKeyEvent, true);
+    window.removeEventListener("blur", clearSuppressedKeys);
     window.removeEventListener("hashchange", handlePageNavigation);
     window.removeEventListener("popstate", handlePageNavigation);
     globalThis.navigation?.removeEventListener("navigate", handlePageNavigation);
@@ -102,6 +104,9 @@
   }
 
   function handlePageKeydown(event) {
+    // A fresh press starts a new sequence, even if an earlier keyup was lost.
+    if (!event.repeat) suppressedKeyups.delete(event.code);
+
     if (palette) {
       suppressedKeyups.add(event.code);
       event.stopImmediatePropagation();
@@ -109,10 +114,19 @@
       if (isPaletteShortcut(event, true)) {
         event.preventDefault();
         closePalette();
-        return;
+      } else {
+        handlePaletteKeydown(event);
       }
 
-      handlePaletteKeydown(event);
+      // Closing clears palette state, but the rest of this press still belongs
+      // to the palette. A fresh keydown or losing focus clears this guard.
+      if (!palette) suppressedKeyups.add(event.code);
+      return;
+    }
+
+    if (event.repeat && suppressedKeyups.has(event.code)) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
       return;
     }
 
@@ -234,6 +248,10 @@
 
     event.stopImmediatePropagation();
     if (event.type === "keyup") suppressedKeyups.delete(event.code);
+  }
+
+  function clearSuppressedKeys() {
+    suppressedKeyups.clear();
   }
 
   async function openPalette() {
@@ -374,6 +392,13 @@
     const { host, previouslyFocusedElement } = palette;
     host.remove();
     palette = null;
+    clearSuppressedKeys();
+    filteredItems = [];
+    selectedIndex = 0;
+    editingCommandId = null;
+    editingCommandScope = null;
+    formSiteHostname = null;
+    siteNameEdited = false;
     if (
       previouslyFocusedElement?.isConnected &&
       typeof previouslyFocusedElement.focus === "function"

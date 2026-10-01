@@ -21,6 +21,12 @@ const fixture = `<!doctype html>
     <script>
       window.receivedKeys = [];
       window.addEventListener("keydown", (event) => receivedKeys.push(event.key));
+      window.receivedKeyEvents = [];
+      for (const type of ["keydown", "keypress", "keyup"]) {
+        window.addEventListener(type, (event) => {
+          receivedKeyEvents.push({ type, key: event.key });
+        });
+      }
     </script>
   </head>
   <body>
@@ -264,8 +270,13 @@ test("palette keyboard, theme, and settings flows work in Chromium", { timeout: 
       "the command matching the current page should be selected"
     );
     const fixtureRequestCountBefore = fixtureRequestCount;
-    await press(cdp, "Enter", "Enter", 13);
+    await evaluate(cdp, "window.receivedKeyEvents = []");
+    await pressEnterWithKeypress(cdp);
     await waitFor(async () => !(await hasPalette(cdp)));
+    assert.deepEqual(
+      await evaluate(cdp, "window.receivedKeyEvents"), [],
+      "Enter closing the current-page command should not trigger page shortcuts"
+    );
     await new Promise((resolve) => setTimeout(resolve, 100));
     assert.equal(
       fixtureRequestCount,
@@ -276,9 +287,53 @@ test("palette keyboard, theme, and settings flows work in Chromium", { timeout: 
     await cdp.send("Input.insertText", { text: "External" });
     await waitFor(async () => (await selectedOptionText(cdp)).includes("Github › External"));
     const pageTargetCountBefore = await pageTargetCount(port);
-    await press(cdp, "Enter", "Enter", 13, 2);
+    // Releasing Enter in the newly opened tab leaves no keyup in this tab.
+    await cdp.send("Input.dispatchKeyEvent", {
+      type: "rawKeyDown", key: "Enter", code: "Enter",
+      windowsVirtualKeyCode: 13, modifiers: 2
+    });
     await waitFor(async () => (await pageTargetCount(port)) > pageTargetCountBefore);
     await waitFor(async () => !(await hasPalette(cdp)));
+    await cdp.send("Page.bringToFront");
+    await evaluate(cdp, "window.receivedKeyEvents = []");
+    await pressEnterWithKeypress(cdp);
+    assert.deepEqual(
+      await evaluate(cdp, "window.receivedKeyEvents"),
+      ["keydown", "keypress", "keyup"].map((type) => ({ type, key: "Enter" })),
+      "the first Enter after returning from a new tab should reach the page completely"
+    );
+
+    await openPalette(cdp);
+    await evaluate(cdp, "window.receivedKeyEvents = []");
+    await cdp.send("Input.dispatchKeyEvent", {
+      type: "rawKeyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27
+    });
+    await waitFor(async () => !(await hasPalette(cdp)));
+    await cdp.send("Input.dispatchKeyEvent", {
+      type: "rawKeyDown", key: "Escape", code: "Escape",
+      windowsVirtualKeyCode: 27, autoRepeat: true
+    });
+    await cdp.send("Input.dispatchKeyEvent", {
+      type: "keyUp", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27
+    });
+    assert.deepEqual(
+      await evaluate(cdp, "window.receivedKeyEvents"), [],
+      "the keystroke that closes the palette should not trigger page shortcuts"
+    );
+
+    await openPalette(cdp);
+    await cdp.send("Input.dispatchKeyEvent", {
+      type: "rawKeyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27
+    });
+    await waitFor(async () => !(await hasPalette(cdp)));
+    // A fresh press must work even if the closing Escape's keyup was missed.
+    await evaluate(cdp, "window.receivedKeyEvents = []");
+    await press(cdp, "Escape", "Escape", 27);
+    assert.deepEqual(
+      await evaluate(cdp, "window.receivedKeyEvents"),
+      ["keydown", "keyup"].map((type) => ({ type, key: "Escape" })),
+      "a fresh press should clear any guard left by the closing keystroke"
+    );
     await openPalette(cdp);
     assert.equal(
       await accessibleNodeClosestStyle(
@@ -735,6 +790,13 @@ async function evaluate(cdp, expression) {
 async function press(cdp, key, code, windowsVirtualKeyCode, modifiers = 0) {
   const params = { key, code, windowsVirtualKeyCode, modifiers };
   await cdp.send("Input.dispatchKeyEvent", { ...params, type: "rawKeyDown" });
+  await cdp.send("Input.dispatchKeyEvent", { ...params, type: "keyUp" });
+}
+
+async function pressEnterWithKeypress(cdp) {
+  const params = { key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 };
+  await cdp.send("Input.dispatchKeyEvent", { ...params, type: "rawKeyDown" });
+  await cdp.send("Input.dispatchKeyEvent", { ...params, type: "char", text: "\r" });
   await cdp.send("Input.dispatchKeyEvent", { ...params, type: "keyUp" });
 }
 
