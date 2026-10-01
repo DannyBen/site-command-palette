@@ -32,12 +32,14 @@ test("palette keyboard, theme, and settings flows work in Chromium", { timeout: 
   const manifest = JSON.parse(
     await readFile(path.join(extensionRoot, "manifest.json"), "utf8")
   );
+  let fixtureRequestCount = 0;
   const server = http.createServer((request, response) => {
     if (request.url !== "/") {
       response.writeHead(404).end();
       return;
     }
 
+    fixtureRequestCount += 1;
     response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
     response.end(fixture);
   });
@@ -256,6 +258,16 @@ test("palette keyboard, theme, and settings flows work in Chromium", { timeout: 
       /Fixture › Zulu/,
       "the command matching the current page should be selected"
     );
+    const fixtureRequestCountBefore = fixtureRequestCount;
+    await press(cdp, "Enter", "Enter", 13);
+    await waitFor(async () => !(await hasPalette(cdp)));
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    assert.equal(
+      fixtureRequestCount,
+      fixtureRequestCountBefore,
+      "opening the current page command should not reload the page"
+    );
+    await openPalette(cdp);
     await cdp.send("Input.insertText", { text: "External" });
     await waitFor(async () => (await selectedOptionText(cdp)).includes("Github › External"));
     const pageTargetCountBefore = await pageTargetCount(port);

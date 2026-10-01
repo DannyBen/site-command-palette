@@ -768,6 +768,11 @@
         return;
       }
 
+      if (urlMatchesPage(item.url, location)) {
+        closePalette();
+        return;
+      }
+
       location.href = item.url;
       return;
     }
