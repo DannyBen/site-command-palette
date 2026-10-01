@@ -328,6 +328,12 @@ test("palette keyboard, theme, and settings flows work in Chromium", { timeout: 
 
     await press(cdp, "`", "Backquote", 192);
     await waitFor(async () => !(await hasPalette(cdp)));
+    assert.equal(
+      await evaluate(cdp, "document.activeElement === document.getElementById('editor')"),
+      true,
+      "closing the palette should restore focus to the previously focused element"
+    );
+    await evaluate(cdp, "document.getElementById('editor').blur()");
     await press(cdp, "`", "Backquote", 192);
     await waitFor(async () => hasPalette(cdp));
     await press(cdp, "t", "KeyT", 84, 1);

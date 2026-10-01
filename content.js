@@ -236,6 +236,7 @@
   async function openPalette() {
     if (!enabled) return;
     opening = true;
+    const previouslyFocusedElement = document.activeElement;
     const existingHost = document.getElementById(HOST_ID);
     if (existingHost) existingHost.remove();
 
@@ -316,6 +317,7 @@
       host,
       root,
       overlay,
+      previouslyFocusedElement,
       mode: "list",
       listView: overlay.querySelector(".list-view"),
       addView: overlay.querySelector(".add-view"),
@@ -357,8 +359,15 @@
 
   function closePalette() {
     if (!palette) return;
-    palette.host.remove();
+    const { host, previouslyFocusedElement } = palette;
+    host.remove();
     palette = null;
+    if (
+      previouslyFocusedElement?.isConnected &&
+      typeof previouslyFocusedElement.focus === "function"
+    ) {
+      previouslyFocusedElement.focus({ preventScroll: true });
+    }
   }
 
   function handlePageNavigation() {
