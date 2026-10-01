@@ -83,6 +83,11 @@ test("palette keyboard, theme, and settings flows work in Chromium", { timeout: 
     ));
 
     await openPalette(cdp);
+    assert.equal(
+      await hasAccessibleText(cdp, "Actions"),
+      true,
+      "the footer should advertise slash actions"
+    );
 
     assert.equal(
       await accessibleNodeStyle(cdp, "searchbox", "Search commands", "direction"),
@@ -695,6 +700,11 @@ function paletteTheme(cdp) {
 async function hasAccessibleNode(cdp, role, name) {
   const { nodes } = await cdp.send("Accessibility.getFullAXTree");
   return nodes.some((node) => node.role?.value === role && node.name?.value === name);
+}
+
+async function hasAccessibleText(cdp, text) {
+  const { nodes } = await cdp.send("Accessibility.getFullAXTree");
+  return nodes.some((node) => node.name?.value?.includes(text));
 }
 
 async function activateAccessibleNode(cdp, role, name) {

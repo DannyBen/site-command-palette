@@ -755,6 +755,7 @@
       hints.push(shortcutHint(settings.keyBindings.remove, "delete"));
     }
 
+    hints.push(footerHint("/", "Actions"));
     palette.footer.innerHTML = `<span class="footer-hints">${hints.join(" ")}</span>`;
   }
 
