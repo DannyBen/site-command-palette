@@ -1,6 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img">
   <title>Site Command Palette</title>
   <g
+    transform="translate(64 64) scale(1.13) translate(-60 -60)"
     fill="none"
     stroke="#2ea043"
     stroke-width="12"
