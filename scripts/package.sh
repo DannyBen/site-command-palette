@@ -8,6 +8,9 @@ mkdir -p dist
 zip -FS -X "$archive" \
   manifest.json \
   background.js \
+  popup.html \
+  popup.js \
+  popup.css \
   core.js \
   storage.js \
   backup.js \

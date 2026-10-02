@@ -23,6 +23,8 @@ yet published in the Chrome Web Store.
 - Exact hostnames can be disabled from Settings when the palette should not run.
 - Commands and preferences remain in local Chrome extension storage.
 - Optional automatic backups write versioned JSON snapshots to a folder you choose.
+  If Chrome removes folder access, backups pause and a red `!` appears on the extension icon.
+  Open Settings and click **Reconnect folder** to approve access and back up the latest data.
 - Page shortcuts are suppressed while the palette is open.
 
 ## Install Locally
@@ -35,9 +37,11 @@ yet published in the Chrome Web Store.
 6. Open or refresh a normal HTTP or HTTPS page.
 7. Press backtick (`` ` ``) or Alt+Backtick (`` Alt+` ``).
 
-Chrome will request access to websites because the extension must install its
-keyboard listener and display the palette within each page. The extension does
-not run on protected Chrome pages such as `chrome://extensions`.
+Chrome requests website access when you install the extension. To restrict access,
+right-click its toolbar icon, open **This can read and change site data**, and choose
+**On this site** or **On all sites**. Shortcuts work on allowed websites; reload the
+page after changing access. Clicking the toolbar icon shows a shortcut reminder.
+The extension does not run on protected Chrome pages such as `chrome://extensions`.
 
 ## Privacy
 

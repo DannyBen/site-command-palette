@@ -10,10 +10,13 @@ test("manifest is valid and references existing packaged files", async () => {
   const packageMetadata = JSON.parse(await readFile(path.join(projectRoot, "package.json"), "utf8"));
 
   assert.equal(manifest.manifest_version, 3);
-  assert.equal(manifest.version, "0.2.0");
+  assert.equal(manifest.version, "0.3.0");
   assert.equal(packageMetadata.version, manifest.version);
   assert.ok(manifest.permissions.includes("storage"));
+  assert.deepEqual(manifest.permissions, ["storage", "activeTab"]);
+  assert.equal(manifest.optional_host_permissions, undefined);
   assert.deepEqual(manifest.content_scripts[0].js, ["core.js", "storage.js", "content.js"]);
+  assert.deepEqual(manifest.content_scripts[0].matches, ["http://*/*", "https://*/*"]);
   assert.deepEqual(manifest.icons, {
     16: "support/icons/icon-16.png",
     32: "support/icons/icon-32.png",
@@ -23,6 +26,7 @@ test("manifest is valid and references existing packaged files", async () => {
 
   const referencedFiles = [
     ...manifest.content_scripts.flatMap((entry) => [...(entry.js ?? []), ...(entry.css ?? [])]),
+    manifest.action.default_popup, "popup.js", "popup.css",
     ...manifest.web_accessible_resources.flatMap((entry) => entry.resources),
     ...Object.values(manifest.icons),
     manifest.background.service_worker,

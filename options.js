@@ -16,6 +16,7 @@
     loadStorage
   } = globalThis.SiteCommandPaletteStorage;
   const {
+    BACKUP_STATUS_KEY,
     backupDownloadName,
     clearBackupDirectory,
     createBackupDocument,
@@ -93,6 +94,13 @@
 
   loadSettings();
   renderBackupState();
+  window.addEventListener("focus", checkBackupAccess);
+  checkBackupAccess();
+
+  function checkBackupAccess() {
+    chrome.runtime.sendMessage({ type: "check-backup-access" });
+    renderBackupState();
+  }
 
   async function loadSettings() {
     const stored = await loadStorage();
@@ -390,9 +398,12 @@
   }
 
   function handleStorageChange(changes, areaName) {
-    if (areaName !== "local" || !changes[SETTINGS_STORAGE_KEY]) return;
-    settings = normalizeSettings(changes[SETTINGS_STORAGE_KEY].newValue);
-    render();
+    if (areaName !== "local") return;
+    if (changes[BACKUP_STATUS_KEY]) renderBackupState();
+    if (changes[SETTINGS_STORAGE_KEY]) {
+      settings = normalizeSettings(changes[SETTINGS_STORAGE_KEY].newValue);
+      render();
+    }
   }
 
   function showStatus(message) {
@@ -520,6 +531,9 @@
     currentBackupState = state;
     const configured = Boolean(state.directoryHandle);
     const permission = await queryBackupPermission(state.directoryHandle);
+    const storedStatus = (await chrome.storage.local.get(BACKUP_STATUS_KEY))[BACKUP_STATUS_KEY];
+    const needsPermission = configured && (permission !== "granted" ||
+      storedStatus?.status === "permission-required");
 
     backupFolder.textContent = state.directoryName ?? "No folder selected";
     lastBackup.textContent = state.lastBackupAt
@@ -527,6 +541,7 @@
       : "Never";
     chooseBackupFolder.textContent = configured ? "Change backup folder" : "Choose backup folder";
     backupNow.disabled = !configured;
+    backupNow.textContent = needsPermission ? "Reconnect folder" : "Backup now";
     restoreBackup.disabled = !configured;
     disableBackup.disabled = !configured;
     backupHistoryLimit.value = String(state.historyLimit);
@@ -534,13 +549,14 @@
     if (!configured) {
       backupState.textContent = "Not configured";
       backupState.dataset.status = "idle";
-    } else if (permission !== "granted") {
+    } else if (needsPermission) {
       backupState.textContent = "Needs permission";
       backupState.dataset.status = "warning";
-    } else if (state.lastError) {
+      showBackupMessage("Automatic backups are paused. Click Reconnect folder to approve access again. Your saved data and existing backups are kept.", true);
+    } else if (state.lastError || storedStatus?.status === "error") {
       backupState.textContent = "Backup failed";
       backupState.dataset.status = "error";
-      showBackupMessage(state.lastError, true);
+      showBackupMessage(state.lastError || storedStatus.message, true);
     } else {
       backupState.textContent = "Active";
       backupState.dataset.status = "active";

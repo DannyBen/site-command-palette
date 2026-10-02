@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Site Command Palette",
   "description": "A fast, contextual command palette for saving and recalling pages across the sites you use.",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "icons": {
     "16": "support/icons/icon-16.png",
     "32": "support/icons/icon-32.png",
@@ -11,8 +11,12 @@
   },
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAyFLFpLRV1xu+kUqExe8fDt141DyS91dN07kCyBTVWQx6iFi+bxb+BYEJUwag+atGAf7JY477gjmJrl8ATXSBvweMo4vgWgREkqMIYnzRi6f2Z9k8NRWKGkoCKGUlOwkCJswjPrOyCDsk9DGQTFkpeVSeWl1WVajmF5emJURsmRNfys8f60N77yo3ixdVRTLWoaHqWoyCYFABkE9lyXVwxCJICSmZj1NWxfEXR39+fEARSkaDxBe3zVrHO6MciQfMUvjsMJv6ZTOBp5QwpaEUOWnoXYiqLYfSNgzFBC8XnT05dSqvcjR1RBoCj8X/Pexire10R1MG0nryG6NLNhgS8wIDAQAB",
   "permissions": [
-    "storage"
+    "storage",
+    "activeTab"
   ],
+  "action": {
+    "default_popup": "popup.html"
+  },
   "options_ui": {
     "page": "options.html",
     "open_in_tab": true
@@ -22,15 +26,8 @@
   },
   "content_scripts": [
     {
-      "matches": [
-        "http://*/*",
-        "https://*/*"
-      ],
-      "js": [
-        "core.js",
-        "storage.js",
-        "content.js"
-      ],
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["core.js", "storage.js", "content.js"],
       "run_at": "document_start"
     }
   ],

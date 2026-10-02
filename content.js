@@ -75,11 +75,33 @@
       chrome.storage.onChanged.addListener(handleStorageChange);
       systemTheme.addEventListener("change", applyTheme);
     } catch (error) {
-      console.error("Site Command Palette settings failed to load:", error);
+      handleExtensionError(error, "Site Command Palette settings failed to load:");
     }
   }
 
-  function disableCurrentSite() {
+  function hasExtensionContext() {
+    try {
+      return Boolean(chrome.runtime?.id);
+    } catch {
+      return false;
+    }
+  }
+
+  function ensureExtensionContext() {
+    if (hasExtensionContext()) return true;
+    disableCurrentSite(false);
+    return false;
+  }
+
+  function handleExtensionError(error, message) {
+    if (!hasExtensionContext() || error?.message?.includes("Extension context invalidated")) {
+      disableCurrentSite(false);
+      return;
+    }
+    console.error(message, error);
+  }
+
+  function disableCurrentSite(removeStorageListener = true) {
     enabled = false;
     opening = false;
     window.removeEventListener("keydown", handlePageKeydown, true);
@@ -90,7 +112,7 @@
     window.removeEventListener("popstate", handlePageNavigation);
     globalThis.navigation?.removeEventListener("navigate", handlePageNavigation);
     globalThis.navigation?.removeEventListener("currententrychange", handlePageNavigation);
-    chrome.storage.onChanged.removeListener(handleStorageChange);
+    if (removeStorageListener) chrome.storage.onChanged.removeListener(handleStorageChange);
     systemTheme?.removeEventListener("change", applyTheme);
     document.getElementById(HOST_ID)?.remove();
     palette = null;
@@ -104,6 +126,7 @@
   }
 
   function handlePageKeydown(event) {
+    if (!ensureExtensionContext()) return;
     // A fresh press starts a new sequence, even if an earlier keyup was lost.
     if (!event.repeat) suppressedKeyups.delete(event.code);
 
@@ -191,7 +214,7 @@
       chrome.storage.local.set({
         [COMMAND_SCOPE_STORAGE_KEY]: showAllCommands ? "all" : "site"
       }).catch((error) => {
-        console.error("Site Command Palette scope failed to save:", error);
+        handleExtensionError(error, "Site Command Palette scope failed to save:");
       });
       refreshCommands();
       updateSearchPlaceholder();
@@ -238,11 +261,13 @@
     } else if (event.key === "Enter" && filteredItems.length > 0) {
       event.preventDefault();
       event.stopPropagation();
-      activateItem(filteredItems[selectedIndex], event.ctrlKey);
+      activateItem(filteredItems[selectedIndex], event.ctrlKey)
+        .catch(error => handleExtensionError(error, "Site Command Palette action failed:"));
     }
   }
 
   function suppressPageKeyEvent(event) {
+    if (!ensureExtensionContext()) return;
     const shouldSuppress = palette || opening || suppressedKeyups.has(event.code);
     if (!shouldSuppress) return;
 
@@ -255,7 +280,18 @@
   }
 
   async function openPalette() {
-    if (!enabled) return;
+    if (!enabled || !ensureExtensionContext()) return;
+    try {
+      await createPalette();
+    } catch (error) {
+      closePalette();
+      handleExtensionError(error, "Site Command Palette failed to open:");
+    } finally {
+      opening = false;
+    }
+  }
+
+  async function createPalette() {
     opening = true;
     const previouslyFocusedElement = document.activeElement;
     const existingHost = document.getElementById(HOST_ID);
@@ -273,10 +309,10 @@
       style.textContent = await stylesheet;
     } catch (error) {
       opening = false;
-      console.error("Site Command Palette:", error);
+      handleExtensionError(error, "Site Command Palette:");
       return;
     }
-    if (!enabled) return;
+    if (!enabled || !ensureExtensionContext()) return;
     overlay.className = "overlay";
     overlay.dir = "ltr";
     overlay.innerHTML = `
@@ -375,6 +411,7 @@
 
     updateSearchPlaceholder();
     const stored = await loadStorage();
+    if (!enabled || !ensureExtensionContext()) return;
     commandsByScope = stored[COMMANDS_STORAGE_KEY];
     sitesByHostname = stored[SITES_STORAGE_KEY];
     refreshCommands();
@@ -412,6 +449,7 @@
   }
 
   function handleOverlayClick(event) {
+    if (!ensureExtensionContext()) return;
     if (event.target === palette.overlay) {
       closePalette();
       return;
@@ -419,7 +457,8 @@
 
     const openButton = event.target.closest("[data-activate-item]");
     if (openButton) {
-      activateItem(filteredItems[Number(openButton.dataset.activateItem)]);
+      activateItem(filteredItems[Number(openButton.dataset.activateItem)])
+        .catch(error => handleExtensionError(error, "Site Command Palette action failed:"));
       return;
     }
 
@@ -551,6 +590,7 @@
 
   async function saveCommand(event) {
     event.preventDefault();
+    if (!ensureExtensionContext()) return;
 
     const editedCommandId = editingCommandId;
     const siteName = palette.siteName.value.trim();
@@ -631,7 +671,7 @@
       commandsByScope = previousCommandsByScope;
       sitesByHostname = previousSitesByHostname;
       if (palette) setError("Could not save the command. Try again.");
-      console.error("Site Command Palette command failed to save:", error);
+      handleExtensionError(error, "Site Command Palette command failed to save:");
       return;
     }
 
@@ -643,6 +683,7 @@
   }
 
   async function removeCommand(id) {
+    if (!ensureExtensionContext()) return;
     const command = commands.find((candidate) => candidate.id === id);
     if (!command) return;
 
@@ -668,7 +709,7 @@
       commandsByScope = previousCommandsByScope;
       sitesByHostname = previousSitesByHostname;
       if (palette) showListMessage("Could not delete the command. Try again.");
-      console.error("Site Command Palette command failed to delete:", error);
+      handleExtensionError(error, "Site Command Palette command failed to delete:");
       return;
     }
 

@@ -9,6 +9,25 @@
   const DATABASE_VERSION = 1;
   const STORE_NAME = "backup";
   const STATE_KEY = "state";
+  const BACKUP_STATUS_KEY = "backupStatus";
+  const PERMISSION_MESSAGE = "Automatic backups are paused. Click Reconnect folder to approve access again. Your saved data and existing backups are kept.";
+
+  async function refreshBackupStatus() {
+    const state = await getBackupState();
+    const permission = await queryBackupPermission(state.directoryHandle);
+    const status = !state.directoryHandle ? "disabled"
+      : permission !== "granted" ? "permission-required"
+      : state.lastError ? "error" : "active";
+    const result = {
+      status,
+      permission,
+      message: status === "permission-required" ? PERMISSION_MESSAGE : state.lastError,
+      lastBackupAt: state.lastBackupAt ?? null,
+      checkedAt: new Date().toISOString()
+    };
+    await globalThis.chrome?.storage?.local.set({ [BACKUP_STATUS_KEY]: result });
+    return result;
+  }
 
   function createBackupDocument(data, exportedAt = new Date().toISOString()) {
     return {
@@ -123,7 +142,7 @@
 
     const permission = await queryBackupPermission(state.directoryHandle);
     if (permission !== "granted") {
-      const message = "Backup folder permission is unavailable. Reconnect it in Settings.";
+      const message = PERMISSION_MESSAGE;
       await writeState({ ...state, lastError: message });
       return { status: "permission-required", message };
     }
@@ -316,6 +335,7 @@
     } finally {
       database.close();
     }
+    await refreshBackupStatus();
   }
 
   function runRequest(database, mode, operation) {
@@ -323,13 +343,14 @@
       const transaction = database.transaction(STORE_NAME, mode);
       const request = operation(transaction.objectStore(STORE_NAME));
 
-      request.addEventListener("success", () => resolve(request.result));
+      transaction.addEventListener("complete", () => resolve(request.result));
       request.addEventListener("error", () => reject(request.error));
       transaction.addEventListener("abort", () => reject(transaction.error));
     });
   }
 
   const api = Object.freeze({
+    BACKUP_STATUS_KEY,
     BACKUP_FILE_NAME,
     DEFAULT_HISTORY_LIMIT,
     backupDownloadName,
@@ -340,6 +361,7 @@
     parseBackupDocument,
     preserveSnapshot,
     queryBackupPermission,
+    refreshBackupStatus,
     readBackup,
     readBackupFile,
     requestBackupPermission,

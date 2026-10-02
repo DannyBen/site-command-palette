@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Site Command Palette</title>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <main>
+      <h1>Site Command Palette</h1>
+      <p class="access-status" role="status">
+        <span>Automatic access</span>
+        <strong id="website-access" data-state="unknown">Checking…</strong>
+      </p>
+      <p id="page-access-note" class="hint" hidden></p>
+      <p id="backup-warning" role="status" hidden></p>
+      <p>Open the palette with
+        <span class="shortcuts"><strong id="primary-shortcut">Backtick (`)</strong><span id="alternate-hint"> or
+          <strong id="alternate-shortcut">Alt + Backtick</strong></span></span>
+      </p>
+      <p>To change website access:</p>
+      <ol>
+        <li>Right-click the extension.</li>
+        <li>Open <strong>This can read and change site data</strong>.</li>
+        <li>Choose <strong>On this site</strong> or <strong>On all sites</strong>.</li>
+      </ol>
+      <footer>
+        <button id="settings">Settings</button>
+        <span class="hint">Reload the page after changing access.</span>
+      </footer>
+    </main>
+    <script src="core.js"></script>
+    <script src="storage.js"></script>
+    <script src="popup.js"></script>
+  </body>
+</html>

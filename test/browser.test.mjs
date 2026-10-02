@@ -78,9 +78,21 @@ test("palette keyboard, theme, and settings flows work in Chromium", { timeout: 
   let cdp;
   try {
     const port = await waitForDebuggingPort(profile, browser, () => browserErrors);
-    await waitForExtensionTarget(port, () => browserErrors);
+    const extensionTarget = await waitForExtensionTarget(port, () => browserErrors);
     const target = await waitForPageTarget(port);
     cdp = await connectCdp(target.webSocketDebuggerUrl);
+
+    const popupUrl = extensionTarget.url.replace(/background\.js$/, "popup.html");
+    await cdp.send("Page.navigate", { url: popupUrl });
+    await waitFor(() => evaluate(cdp,
+      "document.getElementById('primary-shortcut')?.textContent === 'Backtick (`)' && document.getElementById('alternate-shortcut')?.textContent === 'Alt + Backtick'"
+    ));
+    assert.equal(await evaluate(cdp, "document.querySelectorAll('button').length"), 1);
+    assert.equal(await evaluate(cdp, "document.body.textContent.includes('This can read and change site data')"), true);
+    await waitFor(() => evaluate(cdp,
+      "document.getElementById('website-access')?.textContent === 'All sites'"
+    ));
+    assert.equal(await evaluate(cdp, "getComputedStyle(document.body).fontSize"), "15px");
 
     await cdp.send("Page.navigate", { url: pageUrl });
     await waitFor(async () => evaluate(
@@ -644,6 +656,8 @@ test("palette keyboard, theme, and settings flows work in Chromium", { timeout: 
       await waitFor(async () => evaluate(cdp, "document.readyState === 'complete'"));
       await new Promise((resolve) => setTimeout(resolve, 100));
       await openPalette(cdp);
+      await verifyBackupPermissionRecovery(optionsCdp, extensionTarget);
+      await verifyInvalidatedContentScript(cdp, extensionTarget, port);
     } finally {
       optionsCdp.close();
     }
@@ -659,6 +673,129 @@ test("palette keyboard, theme, and settings flows work in Chromium", { timeout: 
     });
   }
 });
+
+async function evaluateAsync(cdp, expression) {
+  const result = await cdp.send("Runtime.evaluate", {
+    expression, awaitPromise: true, returnByValue: true
+  });
+  if (result.exceptionDetails) throw new Error(JSON.stringify(result.exceptionDetails));
+  return result.result.value;
+}
+
+async function verifyBackupPermissionRecovery(optionsCdp, extensionTarget) {
+  // OPFS exercises actual handles, IndexedDB and history writes. Permission loss
+  // is simulated: headless Chromium cannot approve a native folder picker.
+  const worker = await connectCdp(extensionTarget.webSocketDebuggerUrl);
+  try {
+    await waitFor(() => evaluate(worker, "typeof SiteCommandPaletteBackup !== 'undefined'"));
+    await evaluateAsync(optionsCdp, `(async () => {
+      await SiteCommandPaletteBackup.setBackupDirectory(await navigator.storage.getDirectory());
+      await SiteCommandPaletteBackup.writeBackup(await SiteCommandPaletteStorage.loadStorage());
+    })()`);
+    await waitFor(() => evaluate(optionsCdp,
+      "document.getElementById('backup-state').textContent === 'Active'"));
+    await evaluateAsync(worker, `(async () => {
+      globalThis.originalBackupPermission = FileSystemDirectoryHandle.prototype.queryPermission;
+      FileSystemDirectoryHandle.prototype.queryPermission = async () => 'prompt';
+      await SiteCommandPaletteBackup.refreshBackupStatus();
+    })()`);
+    await waitFor(() => evaluate(optionsCdp,
+      "document.getElementById('backup-state').textContent === 'Needs permission' && document.getElementById('backup-now').textContent === 'Reconnect folder'"));
+    assert.equal(await evaluateAsync(worker, "chrome.action.getBadgeText({})"), "!");
+    const previousTheme = await evaluateAsync(worker, `(async () => {
+      const state = await SiteCommandPaletteBackup.getBackupState();
+      const file = await state.directoryHandle.getFileHandle('site-command-palette-backup.json');
+      return JSON.parse(await (await file.getFile()).text()).data.settings.theme;
+    })()`);
+    const nextTheme = previousTheme === "dark" ? "light" : "dark";
+    await evaluateAsync(worker, `(async () => {
+      const data = await SiteCommandPaletteStorage.loadStorage();
+      await chrome.storage.local.set({settings: {...data.settings, theme: '${nextTheme}'}});
+    })()`);
+    await waitFor(() => evaluateAsync(worker, `(async () => {
+      return Boolean((await SiteCommandPaletteBackup.getBackupState()).lastError);
+    })()`));
+    assert.equal(await evaluateAsync(worker, `(async () => {
+      const state = await SiteCommandPaletteBackup.getBackupState();
+      const file = await state.directoryHandle.getFileHandle('site-command-palette-backup.json');
+      return JSON.parse(await (await file.getFile()).text()).data.settings.theme;
+    })()`), previousTheme, "permission loss must leave the existing backup intact");
+    await evaluate(worker,
+      "FileSystemDirectoryHandle.prototype.queryPermission = originalBackupPermission");
+    // Backup Now/Reconnect retries the latest data and archives the old version.
+    await evaluate(optionsCdp, `(() => {
+      const query = FileSystemDirectoryHandle.prototype.queryPermission;
+      const request = FileSystemDirectoryHandle.prototype.requestPermission;
+      FileSystemDirectoryHandle.prototype.queryPermission = async () => 'prompt';
+      FileSystemDirectoryHandle.prototype.requestPermission = async () => {
+        window.backupPermissionRequested = true;
+        FileSystemDirectoryHandle.prototype.queryPermission = query;
+        FileSystemDirectoryHandle.prototype.requestPermission = request;
+        return 'granted';
+      };
+    })()`);
+    await evaluate(optionsCdp, "document.getElementById('backup-now').click()");
+    await waitFor(() => evaluate(optionsCdp,
+      "document.getElementById('backup-state').textContent === 'Active' && document.getElementById('backup-message').textContent === 'Backup completed.'"));
+    assert.equal(await evaluate(optionsCdp, "window.backupPermissionRequested"), true);
+    await waitFor(() => evaluateAsync(worker, `(async () => (await chrome.action.getBadgeText({})) === '')()`));
+    const recovered = await evaluateAsync(worker, `(async () => {
+      const state = await SiteCommandPaletteBackup.getBackupState();
+      const file = await state.directoryHandle.getFileHandle('site-command-palette-backup.json');
+      const history = await state.directoryHandle.getDirectoryHandle('site-command-palette-history');
+      let hasPrevious = false;
+      for await (const [, handle] of history.entries()) {
+        const doc = JSON.parse(await (await handle.getFile()).text());
+        if (doc.data.settings.theme === '${previousTheme}') hasPrevious = true;
+      }
+      return {theme: JSON.parse(await (await file.getFile()).text()).data.settings.theme, hasPrevious};
+    })()`);
+    assert.deepEqual(recovered, {theme: nextTheme, hasPrevious: true});
+    // Check failure visibility on page load, before any database change.
+    await evaluateAsync(worker, `(async () => {
+      FileSystemDirectoryHandle.prototype.queryPermission = async () => 'prompt';
+      await SiteCommandPaletteBackup.refreshBackupStatus();
+    })()`);
+    await optionsCdp.send("Page.reload");
+    await waitFor(() => evaluate(optionsCdp,
+      "document.getElementById('backup-state')?.textContent === 'Needs permission'"));
+    await evaluate(worker,
+      "FileSystemDirectoryHandle.prototype.queryPermission = originalBackupPermission");
+    await evaluateAsync(optionsCdp, "SiteCommandPaletteBackup.clearBackupDirectory()");
+  } finally {
+    worker.close();
+  }
+
+}
+
+async function verifyInvalidatedContentScript(cdp, extensionTarget, port) {
+  const exceptions = [];
+  cdp.onEvent(message => {
+    if (message.method === "Runtime.exceptionThrown") exceptions.push(message.params);
+  });
+  await cdp.send("Runtime.enable");
+  const worker = await connectCdp(extensionTarget.webSocketDebuggerUrl);
+  try {
+    await evaluate(worker, "setTimeout(() => chrome.runtime.reload(), 50)");
+    await waitFor(async () => {
+      const targets = await fetch(`http://127.0.0.1:${port}/json/list`).then(response => response.json());
+      return !targets.some(target => target.id === extensionTarget.id);
+    });
+  } finally {
+    worker.close();
+  }
+  // The page still holds the old script and an open palette after invalidation.
+  await evaluate(cdp, "window.receivedKeys = []; window.receivedKeyEvents = []");
+  await press(cdp, "`", "Backquote", 192);
+  await waitFor(() => evaluate(cdp,
+    "!document.getElementById('site-command-palette-root')"));
+  assert.equal(await evaluate(cdp, "window.receivedKeys.includes('`')"), true,
+    "a stale script must release the triggering shortcut to the page");
+  await press(cdp, "`", "Backquote", 192);
+  assert.equal(await evaluate(cdp, "window.receivedKeys.length"), 2,
+    "stale keyboard handlers must remain removed");
+  assert.deepEqual(exceptions, [], "real context invalidation must not produce an uncaught exception");
+}
 
 async function findChromium() {
   const candidates = [
@@ -753,11 +890,15 @@ async function waitForOptionsTarget(port) {
 async function connectCdp(url) {
   const socket = new WebSocket(url);
   const pending = new Map();
+  const eventListeners = [];
   let nextId = 1;
 
   socket.addEventListener("message", ({ data }) => {
     const message = JSON.parse(data);
-    if (!message.id) return;
+    if (!message.id) {
+      for (const listener of eventListeners) listener(message);
+      return;
+    }
     pending.get(message.id)?.(message);
     pending.delete(message.id);
   });
@@ -768,6 +909,7 @@ async function connectCdp(url) {
 
   return {
     close: () => socket.close(),
+    onEvent: listener => eventListeners.push(listener),
     send(method, params = {}) {
       const id = nextId++;
       socket.send(JSON.stringify({ id, method, params }));
