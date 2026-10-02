@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import http from "node:http";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
+import { createHash } from "node:crypto";
 import { access, mkdtemp, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -38,6 +39,10 @@ test("palette keyboard, theme, and settings flows work in Chromium", { timeout: 
   const manifest = JSON.parse(
     await readFile(path.join(extensionRoot, "manifest.json"), "utf8")
   );
+  const extensionId = createHash("sha256")
+    .update(Buffer.from(manifest.key, "base64"))
+    .digest("hex").slice(0, 32)
+    .replace(/[0-9a-f]/g, digit => String.fromCharCode(97 + parseInt(digit, 16)));
   let fixtureRequestCount = 0;
   const server = http.createServer((request, response) => {
     if (request.url !== "/") {
@@ -78,7 +83,7 @@ test("palette keyboard, theme, and settings flows work in Chromium", { timeout: 
   let cdp;
   try {
     const port = await waitForDebuggingPort(profile, browser, () => browserErrors);
-    const extensionTarget = await waitForExtensionTarget(port, () => browserErrors);
+    const extensionTarget = await waitForExtensionTarget(port, extensionId, () => browserErrors);
     const target = await waitForPageTarget(port);
     cdp = await connectCdp(target.webSocketDebuggerUrl);
 
@@ -852,7 +857,7 @@ async function pageTargetCount(port) {
   return targets.filter((target) => target.type === "page").length;
 }
 
-async function waitForExtensionTarget(port, errors) {
+async function waitForExtensionTarget(port, extensionId, errors) {
   try {
     return await waitFor(async () => {
       try {
@@ -860,8 +865,7 @@ async function waitForExtensionTarget(port, errors) {
         const targets = await response.json();
         return targets.find((target) => (
           target.type === "service_worker" &&
-          target.url.startsWith("chrome-extension://") &&
-          target.url.endsWith("/background.js")
+          target.url === `chrome-extension://${extensionId}/background.js`
         ));
       } catch {
         return false;
