@@ -4,6 +4,7 @@
     formatKeyBinding,
     fuzzyMatch,
     isSiteDisabled,
+    isCommandExternal,
     keyBindingHasModifier,
     matchesKeyBinding,
     normalizeCommandsByScope,
@@ -728,7 +729,7 @@
       : commands.map((command) => ({
         ...command,
         type: "link",
-        external: siteIdentity(command.url) !== siteIdentity(location),
+        external: isCommandExternal(command, location),
         name: `${siteNameForUrl(sitesByHostname, command.url)} › ${command.page}`
           .replace(/\s+>\s+/g, " › ")
       }));

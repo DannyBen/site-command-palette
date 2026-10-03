@@ -279,8 +279,22 @@ test("palette keyboard, theme, and settings flows work in Chromium", { timeout: 
     await waitFor(async () => hasAccessibleNode(cdp, "heading", "Add command"));
     await cdp.send("Input.insertText", { text: "External" });
     await setAccessibleInputValue(cdp, "URL", "https://github.com/");
+    await setAccessibleInputValue(cdp, "Scope", "127.*");
     await activateAccessibleNode(cdp, "button", "Save command");
+    await waitFor(async () => hasAccessibleNode(cdp, "button", "Edit Github › External"));
+    assert.equal(
+      await hasAccessibleNode(cdp, "separator", "External commands"),
+      false,
+      "a destination on another host should be internal when its wildcard scope matches"
+    );
+    await activateAccessibleNode(cdp, "button", "Edit Github › External");
+    await waitFor(async () => hasAccessibleNode(cdp, "heading", "Edit command"));
+    await setAccessibleInputValue(cdp, "Scope", "*");
+    await activateAccessibleNode(cdp, "button", "Update command");
     await waitFor(async () => hasAccessibleNode(cdp, "separator", "External commands"));
+    await press(cdp, "Escape", "Escape", 27);
+    await waitFor(async () => !(await hasPalette(cdp)));
+    await openPalette(cdp);
     assert.match(
       await selectedOptionText(cdp),
       /Fixture › Zulu/,

@@ -468,6 +468,12 @@
     )) ?? null;
   }
 
+  function isCommandExternal(command, locationValue) {
+    if (siteIdentity(command.url) === siteIdentity(locationValue)) return false;
+    const scope = normalizeScope(command.scope);
+    return !scope || scope === "*" || !scopeMatches(scope, locationValue);
+  }
+
   function resolveAllCommands(commandsByScope) {
     return Object.entries(commandsByScope)
       .flatMap(([scope, commands]) => commands.map((command) => ({ ...command, scope })));
@@ -576,6 +582,7 @@
     keyBindingFromEvent,
     keyBindingHasModifier,
     isSiteDisabled,
+    isCommandExternal,
     matchesKeyBinding,
     migrateStorage,
     middleEllipsis,

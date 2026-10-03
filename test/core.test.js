@@ -13,6 +13,7 @@ const {
   formatKeyBinding,
   fuzzyMatch,
   isSiteDisabled,
+  isCommandExternal,
   keyBindingFromEvent,
   keyBindingHasModifier,
   matchesKeyBinding,
@@ -69,6 +70,24 @@ test("scopeMatches uses whole-value glob semantics", () => {
   assert.equal(scopeMatches("pages.github.com/dannyben/*", "https://pages.github.com/dannyben/project"), true);
   assert.equal(scopeMatches("pages.github.com/dannyben/*", "https://pages.github.com/other/project"), false);
   assert.equal(scopeMatches("*", "https://example.com/anything"), true);
+});
+
+test("command grouping treats matching non-global scopes as internal", () => {
+  const elections = { scope: "*.n12.co.il", url: "https://special.n12.co.il/elections2026" };
+  const game = { scope: "*.n12.co.il", url: "https://coalition.n12.co.il/" };
+  for (const hostname of ["www.n12.co.il", "special.n12.co.il", "coalition.n12.co.il"]) {
+    for (const command of [elections, game]) {
+      assert.equal(isCommandExternal(command, `https://${hostname}/`), false);
+    }
+  }
+  assert.equal(isCommandExternal(elections, "https://n12.co.il/"), true);
+  assert.equal(isCommandExternal(elections, "https://example.com/"), true);
+  assert.equal(isCommandExternal({ ...elections, scope: "*" }, "https://www.n12.co.il/"), true);
+  assert.equal(isCommandExternal({ ...elections, scope: "*" }, elections.url), false);
+  assert.equal(isCommandExternal({ ...elections, scope: "n12.co.il" }, "https://n12.co.il/"), false);
+  const pathCommand = { ...elections, scope: "example.com/news/*" };
+  assert.equal(isCommandExternal(pathCommand, "https://example.com/news/today"), false);
+  assert.equal(isCommandExternal(pathCommand, "https://example.com/sports/"), true);
 });
 
 test("normalizeCommandsByScope preserves exact, global, and wildcard collections", () => {
