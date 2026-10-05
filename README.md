@@ -4,8 +4,7 @@ A keyboard-first Chrome extension that brings a fast command palette to any
 website. Save the pages you use on each site, fuzzy-search them, and navigate
 without leaving the keyboard.
 
-The extension is currently available for local installation only and is not
-yet published in the Chrome Web Store.
+[Install from the Chrome Web Store](https://chromewebstore.google.com/detail/site-command-palette/mggaoklidiacgmndlioocigolndokdfm).
 
 ## Feature Highlights
 
@@ -27,7 +26,7 @@ yet published in the Chrome Web Store.
   Open Settings and click **Reconnect folder** to approve access and back up the latest data.
 - Page shortcuts are suppressed while the palette is open.
 
-## Install Locally
+## Install from Source
 
 1. Download or clone this repository.
 2. Open `chrome://extensions` in Chrome.
