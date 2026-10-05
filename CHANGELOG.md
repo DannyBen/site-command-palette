@@ -1,7 +1,7 @@
 Changelog
 ========================================
 
-Untagged - Latest
+v0.3.1 - 2026-10-05
 ----------------------------------------
 
 - Avoid page reload when selecting same page

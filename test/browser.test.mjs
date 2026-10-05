@@ -970,6 +970,16 @@ async function openPalette(cdp) {
     await press(cdp, "`", "Backquote", 192);
     return hasPalette(cdp);
   });
+  // The host appears before storage loading, rendering, and search focus finish.
+  await waitFor(async () => {
+    const { nodes } = await cdp.send("Accessibility.getFullAXTree");
+    return nodes.some((node) => (
+      node.role?.value === "searchbox" && node.name?.value === "Search commands" &&
+      node.properties?.some((property) => (
+        property.name === "focused" && property.value?.value === true
+      ))
+    ));
+  });
 }
 
 function paletteTheme(cdp) {
