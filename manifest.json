@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Site Command Palette",
   "description": "A fast, contextual command palette for saving and recalling pages across the sites you use.",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "icons": {
     "16": "support/icons/icon-16.png",
     "32": "support/icons/icon-32.png",

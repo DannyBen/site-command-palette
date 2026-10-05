@@ -10,7 +10,7 @@ test("manifest is valid and references existing packaged files", async () => {
   const packageMetadata = JSON.parse(await readFile(path.join(projectRoot, "package.json"), "utf8"));
 
   assert.equal(manifest.manifest_version, 3);
-  assert.equal(manifest.version, "0.3.0");
+  assert.equal(manifest.version, "0.3.1");
   assert.equal(packageMetadata.version, manifest.version);
   assert.ok(manifest.permissions.includes("storage"));
   assert.deepEqual(manifest.permissions, ["storage", "activeTab"]);

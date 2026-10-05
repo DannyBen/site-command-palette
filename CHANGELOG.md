@@ -1,6 +1,20 @@
 Changelog
 ========================================
 
+Untagged - Latest
+----------------------------------------
+
+- Avoid page reload when selecting same page
+- Remember and restore page focused element
+- Mention '/ Actions' in the tip bar
+- Add manual export/import
+- Add error message for save failures
+-  Fix swallowed page shortcuts after closing the palette
+- Enlarge icon
+- Improve handling of disconnected backup folder
+- Fix internal grouping for commands with matching scopes
+
+
 v0.2.0 - 2026-09-30
 ----------------------------------------
 
