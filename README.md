@@ -6,6 +6,8 @@ without leaving the keyboard.
 
 [Install from the Chrome Web Store](https://chromewebstore.google.com/detail/site-command-palette/mggaoklidiacgmndlioocigolndokdfm).
 
+![](/support/store/screenshots/palette-dark.png)
+
 ## Feature Highlights
 
 - Flexible command scopes: exact sites by default, with global and wildcard patterns when needed.
