@@ -228,6 +228,18 @@ p {
   }
 }
 
+.history-preference {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--text-compact);
+  font-weight: var(--weight-medium);
+
+  input {
+    accent-color: var(--interaction-color);
+  }
+}
+
 select {
   padding: 8px 34px 8px 10px;
   border: 1px solid var(--border-color);

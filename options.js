@@ -1,6 +1,7 @@
 (() => {
   const {
     DEFAULT_KEY_BINDINGS,
+    HISTORY_ENABLED_STORAGE_KEY,
     formatBackupDate,
     formatKeyBinding,
     keyBindingFromEvent,
@@ -35,6 +36,8 @@
   const systemTheme = matchMedia("(prefers-color-scheme: dark)");
 
   const globalTheme = document.getElementById("global-theme");
+  const includeHistory = document.getElementById("include-history");
+  const historyMessage = document.getElementById("history-message");
   const extensionVersion = document.getElementById("extension-version");
   const overrideList = document.getElementById("override-list");
   const emptyOverrides = document.getElementById("empty-overrides");
@@ -72,6 +75,9 @@
   extensionVersion.textContent = `· Version ${chrome.runtime.getManifest().version}`;
 
   globalTheme.addEventListener("change", saveGlobalTheme);
+  includeHistory.addEventListener("change", changeHistoryAccess);
+  chrome.permissions.onAdded.addListener(renderHistoryAccess);
+  chrome.permissions.onRemoved.addListener(renderHistoryAccess);
   overrideList.addEventListener("change", updateSiteTheme);
   overrideList.addEventListener("click", removeSiteTheme);
   disabledSiteForm.addEventListener("submit", addDisabledSite);
@@ -93,6 +99,7 @@
   existingBackupDialog.addEventListener("close", resolveExistingBackup);
 
   loadSettings();
+  renderHistoryAccess();
   renderBackupState();
   window.addEventListener("focus", checkBackupAccess);
   checkBackupAccess();
@@ -100,6 +107,35 @@
   function checkBackupAccess() {
     chrome.runtime.sendMessage({ type: "check-backup-access" });
     renderBackupState();
+  }
+
+  async function renderHistoryAccess() {
+    includeHistory.checked = await chrome.permissions.contains({ permissions: ["history"] });
+  }
+
+  async function changeHistoryAccess() {
+    const requested = includeHistory.checked;
+    includeHistory.disabled = true;
+    historyMessage.textContent = "";
+    try {
+      // Request directly from the checkbox gesture, before any other await.
+      if (requested) await chrome.permissions.request({ permissions: ["history"] });
+      else await chrome.permissions.remove({ permissions: ["history"] });
+      await renderHistoryAccess();
+      await chrome.storage.local.set({ [HISTORY_ENABLED_STORAGE_KEY]: includeHistory.checked });
+      const changed = requested === includeHistory.checked;
+      historyMessage.textContent = requested && !includeHistory.checked
+        ? "History access was not granted."
+        : !requested && includeHistory.checked ? "History access could not be removed."
+        : includeHistory.checked ? "Browsing history enabled." : "Browsing history disabled.";
+      historyMessage.dataset.status = changed ? "success" : "error";
+    } catch (error) {
+      historyMessage.textContent = error.message;
+      historyMessage.dataset.status = "error";
+      await renderHistoryAccess();
+    } finally {
+      includeHistory.disabled = false;
+    }
   }
 
   async function loadSettings() {

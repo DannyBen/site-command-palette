@@ -14,6 +14,7 @@ test("manifest is valid and references existing packaged files", async () => {
   assert.equal(packageMetadata.version, manifest.version);
   assert.ok(manifest.permissions.includes("storage"));
   assert.deepEqual(manifest.permissions, ["storage", "activeTab"]);
+  assert.deepEqual(manifest.optional_permissions, ["history"]);
   assert.equal(manifest.optional_host_permissions, undefined);
   assert.deepEqual(manifest.content_scripts[0].js, ["core.js", "storage.js", "content.js"]);
   assert.deepEqual(manifest.content_scripts[0].matches, ["http://*/*", "https://*/*"]);

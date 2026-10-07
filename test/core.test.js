@@ -237,6 +237,17 @@ test("fuzzyMatch selects the strongest character sequence", () => {
   );
 });
 
+test("fuzzyMatch favors continuing a word over jumping to another word start", () => {
+  assert.deepEqual(
+    fuzzyMatch("gitvic", "Github › Victor CLI").indices,
+    [0, 1, 2, 9, 10, 11]
+  );
+  assert.deepEqual(
+    fuzzyMatch("gitviccli", "Github › Victor CLI").indices,
+    [0, 1, 2, 9, 10, 11, 16, 17, 18]
+  );
+});
+
 test("middleEllipsis preserves both ends at the requested length", () => {
   assert.equal(middleEllipsis("short", 10), "short");
 

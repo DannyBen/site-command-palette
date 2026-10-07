@@ -3,6 +3,8 @@
     findCommandNameConflict,
     formatKeyBinding,
     fuzzyMatch,
+    HISTORY_ENABLED_STORAGE_KEY,
+    historySearchPrefix,
     isSiteDisabled,
     isCommandExternal,
     keyBindingHasModifier,
@@ -13,6 +15,7 @@
     normalizeSites,
     normalizeUrl,
     resolveAllCommands,
+    rankHistory,
     resolveTheme,
     resolveCommandsForLocation,
     siteIdentity,
@@ -38,6 +41,13 @@
   let filteredItems = [];
   let selectedIndex = 0;
   let showAllCommands = false;
+  let historyEnabled = false;
+  let historyItems = [];
+  let historyTimer = null;
+  let historyRequest = 0;
+  let historyCache = null;
+  let historyPendingPrefix = null;
+  let historyLoading = false;
   let opening = false;
   let editingCommandId = null;
   let editingCommandScope = null;
@@ -56,8 +66,9 @@
       settings = stored[SETTINGS_STORAGE_KEY];
       if (isSiteDisabled(settings, location)) return;
 
-      const storedScope = await chrome.storage.local.get(COMMAND_SCOPE_STORAGE_KEY);
+      const storedScope = await chrome.storage.local.get([COMMAND_SCOPE_STORAGE_KEY, HISTORY_ENABLED_STORAGE_KEY]);
       showAllCommands = storedScope[COMMAND_SCOPE_STORAGE_KEY] === "all";
+      historyEnabled = storedScope[HISTORY_ENABLED_STORAGE_KEY] === true;
 
       stylesheet = fetch(chrome.runtime.getURL("palette.css")).then((response) => {
         if (!response.ok) throw new Error("Could not load palette styles");
@@ -103,6 +114,7 @@
   }
 
   function disableCurrentSite(removeStorageListener = true) {
+    clearHistorySearch();
     enabled = false;
     opening = false;
     window.removeEventListener("keydown", handlePageKeydown, true);
@@ -412,7 +424,9 @@
 
     updateSearchPlaceholder();
     const stored = await loadStorage();
+    const historyAccess = await chrome.storage.local.get(HISTORY_ENABLED_STORAGE_KEY);
     if (!enabled || !ensureExtensionContext()) return;
+    historyEnabled = historyAccess[HISTORY_ENABLED_STORAGE_KEY] === true;
     commandsByScope = stored[COMMANDS_STORAGE_KEY];
     sitesByHostname = stored[SITES_STORAGE_KEY];
     refreshCommands();
@@ -427,6 +441,7 @@
 
   function closePalette() {
     if (!palette) return;
+    clearHistorySearch();
     const { host, previouslyFocusedElement } = palette;
     host.remove();
     palette = null;
@@ -530,12 +545,12 @@
     if (!palette) return;
 
     if (showAllCommands) {
-      palette.search.placeholder = "Search all commands";
+      palette.search.placeholder = historyEnabled ? "Search all commands and history" : "Search all commands";
       return;
     }
 
     const siteName = siteNameForUrl(sitesByHostname, location, document.title);
-    palette.search.placeholder = `Search ${siteName} commands`;
+    palette.search.placeholder = `Search ${siteName} commands${historyEnabled ? " and history" : ""}`;
   }
 
   function applyScopePreset(event) {
@@ -719,11 +734,68 @@
     filterAndRender(neighborId);
   }
 
-  function filterAndRender(preferredItemId = null) {
+  function clearHistorySearch(clearCache = true) {
+    clearTimeout(historyTimer);
+    historyTimer = null;
+    historyRequest += 1;
+    historyItems = [];
+    historyPendingPrefix = null;
+    historyLoading = false;
+    if (clearCache) historyCache = null;
+  }
+
+  function searchHistory(query) {
+    if (!historyEnabled || !query || query.startsWith("/")) {
+      clearHistorySearch(!historyEnabled);
+      return;
+    }
+    const prefix = historySearchPrefix(query, location.hostname);
+    if (historyCache?.prefix === prefix) {
+      clearHistorySearch(false);
+      historyItems = rankHistory(historyCache.candidates, {
+        query, hostname: showAllCommands ? null : location.hostname,
+        excludedUrls: resolveAllCommands(commandsByScope).map((command) => command.url)
+      });
+      return;
+    }
+    if (historyPendingPrefix === prefix) return;
+    clearHistorySearch(false);
+    historyPendingPrefix = prefix;
+    historyLoading = true;
+    const request = historyRequest;
+    historyTimer = setTimeout(async () => {
+      historyTimer = null;
+      try {
+        const result = await chrome.runtime.sendMessage({
+          type: "search-history", query, scope: showAllCommands ? "all" : "site"
+        });
+        if (request !== historyRequest || !palette) return;
+        historyPendingPrefix = null;
+        historyLoading = false;
+        if (!result?.error) historyCache = { prefix, candidates: result?.candidates ?? [] };
+        if (palette.mode !== "list") return;
+        const selectedId = filteredItems[selectedIndex]?.id;
+        filterAndRender(selectedId, !result?.error);
+        if (result?.error) showListMessage("Browsing history could not be searched. Try again.");
+      } catch (error) {
+        if (request !== historyRequest || !palette) return;
+        historyPendingPrefix = null;
+        historyLoading = false;
+        handleExtensionError(error, "Site Command Palette history search failed:");
+        if (palette?.mode === "list") {
+          filterAndRender(null, false);
+          showListMessage("Browsing history could not be searched. Try again.");
+        }
+      }
+    }, 40);
+  }
+
+  function filterAndRender(preferredItemId = null, refreshHistory = true) {
     if (!palette) return;
 
     const query = palette.search.value.trim();
     const actionMode = query.startsWith("/");
+    if (refreshHistory) searchHistory(query);
     const items = actionMode
       ? getActions()
       : commands.map((command) => ({
@@ -747,7 +819,8 @@
     if (!actionMode) {
       filteredItems = [
         ...filteredItems.filter((item) => !item.external),
-        ...filteredItems.filter((item) => item.external)
+        ...filteredItems.filter((item) => item.external),
+        ...historyItems
       ];
     }
 
@@ -770,6 +843,10 @@
 
       if (actionMode) {
         empty.textContent = "No matching actions.";
+      } else if (historyLoading) {
+        empty.textContent = "Searching history…";
+      } else if (historyEnabled && palette.search.value.trim()) {
+        empty.textContent = "No matching commands or history.";
       } else if (commands.length === 0) {
         empty.textContent = `No commands saved for ${location.hostname}.`;
       } else {
@@ -783,10 +860,18 @@
 
     const firstExternalIndex = actionMode
       ? -1
-      : filteredItems.findIndex((item) => item.external);
+      : filteredItems.findIndex((item) => item.type === "link" && item.external);
     const showExternalDivider = firstExternalIndex > 0;
 
     filteredItems.forEach((item, index) => {
+      if (item.type === "history" && filteredItems[index - 1]?.type !== "history") {
+        const divider = document.createElement("div");
+        divider.className = "command-divider";
+        divider.setAttribute("role", "separator");
+        divider.setAttribute("aria-label", "Browsing history");
+        divider.textContent = "History";
+        palette.commandList.append(divider);
+      }
       if (showExternalDivider && index === firstExternalIndex) {
         const divider = document.createElement("div");
         divider.className = "command-divider";
@@ -815,9 +900,9 @@
       if (item.type !== "link") {
         const detail = document.createElement("span");
         detail.className = "command-detail";
-        detail.textContent = item.detail;
+        appendHighlightedText(detail, item.detail, item.detailIndices ?? []);
         detail.title = item.detail;
-        openButton.classList.add("detailed");
+        openButton.classList.add(item.type === "history" ? "history-link" : "detailed");
         openButton.append(detail);
       }
 
@@ -857,7 +942,7 @@
 
     hints.push(footerHint("Tab", "Scope"));
 
-    if (selectedItem?.type === "link") {
+    if (["link", "history"].includes(selectedItem?.type)) {
       hints.push(footerHint("Ctrl+Enter", "New tab"));
     }
 
@@ -884,7 +969,7 @@
   async function activateItem(item, openInNewTab = false) {
     if (!item) return;
 
-    if (item.type === "link") {
+    if (["link", "history"].includes(item.type)) {
       if (openInNewTab) {
         await chrome.runtime.sendMessage({ type: "open-tab", url: item.url });
         closePalette();
@@ -991,6 +1076,13 @@
 
   function handleStorageChange(changes, areaName) {
     if (areaName !== "local") return;
+
+    if (changes[HISTORY_ENABLED_STORAGE_KEY]) {
+      clearHistorySearch();
+      historyEnabled = changes[HISTORY_ENABLED_STORAGE_KEY].newValue === true;
+      updateSearchPlaceholder();
+      if (palette?.mode === "list") filterAndRender();
+    }
 
     if (changes[COMMAND_SCOPE_STORAGE_KEY]) {
       const nextShowAllCommands = changes[COMMAND_SCOPE_STORAGE_KEY].newValue === "all";

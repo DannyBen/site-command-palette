@@ -4,6 +4,7 @@
   const COMMANDS_STORAGE_KEY = "commandsByHostname";
   const SITES_STORAGE_KEY = "sitesByHostname";
   const SETTINGS_STORAGE_KEY = "settings";
+  const HISTORY_ENABLED_STORAGE_KEY = "historyEnabled";
   const DEFAULT_KEY_BINDINGS = Object.freeze({
     togglePrimary: "Backquote",
     toggleAlternate: "Alt+Backquote",
@@ -43,6 +44,53 @@
     } catch {
       return null;
     }
+  }
+
+  function historySearchPrefix(query, hostname) {
+    const firstWord = query.trim().replace(/^https?:\/\//i, "").split(/[\s/]+/, 1)[0].toLocaleLowerCase();
+    const sitePrefix = hostname.replace(/^www\./, "").split(".")[0];
+    for (const prefix of [hostname, sitePrefix]) {
+      if (prefix.length < 3 || !firstWord.startsWith(prefix)) continue;
+      if (/^[\p{L}\p{N}]/u.test(firstWord.slice(prefix.length))) return prefix;
+    }
+    return firstWord;
+  }
+
+  function rankHistory(items, { query = "", hostname = null, excludedUrls = [] } = {}) {
+    query = query.trim();
+    if (!query) return [];
+    const excluded = new Set(excludedUrls.map(normalizeUrl));
+    const needle = query.toLocaleLowerCase();
+    const compactQuery = query.replace(/\s+/g, "");
+    const matchHistory = (candidate) => fuzzyMatch(
+      candidate.toLocaleLowerCase().includes(needle) ? query : compactQuery,
+      candidate
+    );
+    const seen = new Set();
+    return items.flatMap((item) => {
+      const url = normalizeUrl(item.url);
+      if (!url || excluded.has(url) || seen.has(url)) return [];
+      const host = new URL(url).hostname;
+      if (hostname && host !== hostname) return [];
+      seen.add(url);
+      const name = item.title?.trim() || url;
+      const urlMatch = matchHistory(url);
+      const titleMatch = urlMatch ? null : matchHistory(name);
+      if (!urlMatch && !titleMatch) return [];
+      const candidate = (urlMatch ? url : name).toLocaleLowerCase();
+      const exact = candidate.includes(needle) || candidate.includes(compactQuery.toLocaleLowerCase());
+      const quality = (urlMatch ? 2 : 0) + (exact ? 1 : 0);
+      return [{
+        type: "history", id: `history:${url}`, name, url, detail: url,
+        quality, score: (urlMatch ?? titleMatch).score, urlMatch
+      }];
+    }).sort((left, right) => right.quality - left.quality || right.score - left.score ||
+      left.url.length - right.url.length || left.url.localeCompare(right.url))
+      .slice(0, 8).map((item) => ({
+        ...item,
+        match: matchHistory(item.name) ?? { score: 0, indices: [] },
+        detailIndices: item.urlMatch?.indices ?? []
+      }));
   }
 
   function siteIdentity(value) {
@@ -162,6 +210,8 @@
 
     const needle = query.toLocaleLowerCase();
     const haystack = candidate.toLocaleLowerCase();
+    // Continuing a run outweighs jumping to a new word's start (+4).
+    const consecutiveBonus = 5;
     let exactState = null;
     let exactIndex = haystack.indexOf(needle);
 
@@ -174,7 +224,7 @@
         ? 4
         : 0;
       exactState = betterFuzzyState(exactState, {
-        score: needle.length + wordStartBonus + (needle.length - 1) * 2,
+        score: needle.length + wordStartBonus + (needle.length - 1) * consecutiveBonus,
         indices
       });
       exactIndex = haystack.indexOf(needle, exactIndex + 1);
@@ -213,7 +263,7 @@
 
         const consecutiveState = index > 0 && previousStates[index - 1]
           ? {
-              score: previousStates[index - 1].score + characterScore + 2,
+              score: previousStates[index - 1].score + characterScore + consecutiveBonus,
               indices: [...previousStates[index - 1].indices, index]
             }
           : null;
@@ -570,6 +620,7 @@
   const api = Object.freeze({
     COMMANDS_STORAGE_KEY,
     DEFAULT_KEY_BINDINGS,
+    HISTORY_ENABLED_STORAGE_KEY,
     SETTINGS_STORAGE_KEY,
     SITES_STORAGE_KEY,
     STORAGE_SCHEMA_VERSION,
@@ -579,6 +630,7 @@
     formatBackupDate,
     formatKeyBinding,
     fuzzyMatch,
+    historySearchPrefix,
     keyBindingFromEvent,
     keyBindingHasModifier,
     isSiteDisabled,
@@ -595,6 +647,7 @@
     normalizeScope,
     normalizeUrl,
     resolveAllCommands,
+    rankHistory,
     resolveTheme,
     resolveCommandsForLocation,
     siteIdentity,

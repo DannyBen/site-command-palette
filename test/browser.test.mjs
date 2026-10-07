@@ -4,7 +4,7 @@ import http from "node:http";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { createHash } from "node:crypto";
-import { access, mkdtemp, readFile, rm } from "node:fs/promises";
+import { access, copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -473,6 +473,7 @@ test("palette keyboard, theme, and settings flows work in Chromium", { timeout: 
         await evaluate(optionsCdp, "document.getElementById('extension-version').textContent"),
         `· Version ${manifest.version}`
       );
+      await verifyHistoryPermissionControls(optionsCdp);
       assert.equal(
         await evaluate(optionsCdp, "typeof window.showDirectoryPicker"),
         "function",
@@ -693,10 +694,272 @@ test("palette keyboard, theme, and settings flows work in Chromium", { timeout: 
   }
 });
 
-async function evaluateAsync(cdp, expression) {
-  const result = await cdp.send("Runtime.evaluate", {
-    expression, awaitPromise: true, returnByValue: true
+test("history results use real Chrome history and follow palette scope and navigation", { timeout: 45_000 }, async () => {
+  const workspace = await mkdtemp(path.join(os.tmpdir(), "palette-history-test-"));
+  const testExtension = path.join(workspace, "extension");
+  const manifest = JSON.parse(await readFile(path.join(extensionRoot, "manifest.json"), "utf8"));
+  // Headless Chrome cannot display the optional-permission confirmation dialog.
+  // Grant history in this isolated fixture to exercise the real history API.
+  manifest.permissions.push("history");
+  delete manifest.optional_permissions;
+  const files = new Set([
+    "background.js", "core.js", "storage.js", "backup.js", "content.js", "palette.css",
+    "popup.html", "popup.js", "popup.css", "options.html", "options.js", "options.css",
+    ...Object.values(manifest.icons),
+    ...manifest.web_accessible_resources.flatMap(entry => entry.resources)
+  ]);
+  await mkdir(testExtension);
+  for (const file of files) {
+    await mkdir(path.dirname(path.join(testExtension, file)), { recursive: true });
+    await copyFile(path.join(extensionRoot, file), path.join(testExtension, file));
+  }
+  await writeFile(path.join(testExtension, "manifest.json"), JSON.stringify(manifest));
+  const extensionId = createHash("sha256").update(Buffer.from(manifest.key, "base64"))
+    .digest("hex").slice(0, 32).replace(/[0-9a-f]/g, digit => String.fromCharCode(97 + parseInt(digit, 16)));
+  const server = http.createServer((request, response) => {
+    response.writeHead(200, { "Content-Type": "text/html" }).end(fixture);
   });
+  let browser;
+  let cdp;
+  let worker;
+  try {
+    await new Promise((resolve, reject) => {
+      server.once("error", reject);
+      server.listen(0, "127.0.0.1", resolve);
+    });
+    const portNumber = server.address().port;
+    const base = `http://127.0.0.1:${portNumber}`;
+    const frequent = `${base}/history/usual`;
+    const rare = `${base}/history/rare`;
+    const saved = `${base}/history/saved`;
+    const global = `http://localhost:${portNumber}/history/global`;
+    const victor = "https://github.com/dannyben/victor";
+    const deepHistory = `${base}/history/rare/detail/119`;
+    const pendingUsual = `${base}/pending/usual`;
+    const pendingRare = `${base}/pending/rare`;
+    const chromium = await findChromium();
+    const profile = path.join(workspace, "profile");
+    browser = spawn(chromium, [
+      "--headless=new", "--no-sandbox", "--disable-gpu", "--disable-crash-reporter",
+      `--user-data-dir=${profile}`, "--remote-debugging-address=127.0.0.1",
+      "--remote-debugging-port=0", `--disable-extensions-except=${testExtension}`,
+      `--load-extension=${testExtension}`, "about:blank"
+    ], { stdio: ["ignore", "ignore", "pipe"] });
+    let errors = "";
+    browser.stderr.on("data", chunk => { errors = `${errors}${chunk}`.slice(-8000); });
+    const port = await waitForDebuggingPort(profile, browser, () => errors);
+    const extensionTarget = await waitForExtensionTarget(port, extensionId, () => errors);
+    worker = await connectCdp(extensionTarget.webSocketDebuggerUrl);
+    await worker.send("Runtime.runIfWaitingForDebugger");
+    await waitFor(() => evaluate(worker, "Boolean(globalThis.SiteCommandPaletteCore)"));
+    const target = await waitForPageTarget(port);
+    cdp = await connectCdp(target.webSocketDebuggerUrl);
+    await cdp.send("Page.navigate", { url: `${base}/` });
+    await waitFor(() => evaluate(cdp, `location.href === ${JSON.stringify(`${base}/`)} && document.readyState === 'complete'`));
+    await evaluateAsync(worker, `(async () => {
+      for (let index = 0; index < 15; index++) {
+        await chrome.history.addUrl({url: ${JSON.stringify(frequent)}});
+      }
+      for (const url of ${JSON.stringify([rare, saved, global, victor, `${victor}-cli`, `${victor}/pulls`, `${victor}/pull/42`, pendingUsual, pendingRare])}) {
+        await chrome.history.addUrl({url});
+      }
+      for (let index = 0; index < 120; index++) {
+        await chrome.history.addUrl({url: ${JSON.stringify(`${base}/history/rare/detail/`)} + index});
+      }
+      await chrome.storage.local.set({
+        commandsByHostname: {"*": [{id: "saved-history", page: "History saved", url: ${JSON.stringify(saved)}}]},
+        sitesByHostname: {"127.0.0.1": {name: "Local"}}, commandScope: "site"
+      });
+      await refreshHistoryAccess();
+      globalThis.historyPrefixQueries = [];
+      globalThis.nativeHistorySearch = chrome.history.search;
+      chrome.history.search = query => {
+        historyPrefixQueries.push(query.text);
+        return nativeHistorySearch(query);
+      };
+    })()`);
+    for (const scope of ["site", "all"]) {
+      for (const query of ["github vi", "github vic", "github vict", "githubvic", "github/vic", "github victor", "githubvictor", "github/victor"]) {
+        const urls = await evaluateAsync(worker, `searchHistory(
+          ${JSON.stringify({ query, scope })}, {url: 'https://github.com/', tab: {}}
+        ).then(result => SiteCommandPaletteCore.rankHistory(result.candidates, {
+          query: ${JSON.stringify(query)}, hostname: ${JSON.stringify(scope === "site" ? "github.com" : null)}
+        }).map(item => item.url))`);
+        assert.equal(urls[0], victor, `${query} should prefer the repository URL in ${scope} scope`);
+      }
+    }
+    await evaluate(worker, "historyPrefixQueries = []");
+    await openPalette(cdp);
+    assert.equal(await hasAccessibleNode(cdp, "separator", "Browsing history"), false,
+      "opening the palette with blank search should show saved commands only");
+    await cdp.send("Input.insertText", { text: "history" });
+    await waitFor(() => hasAccessibleText(cdp, frequent));
+    assert.deepEqual(await evaluate(worker, "historyPrefixQueries"), ["history"]);
+    const refined = await setHistorySearch(cdp, "history rare detail 119");
+    assert.ok(refined.some(text => text.includes(deepHistory)),
+      "refinement must immediately find candidates outside the eight original results");
+    assert.equal(refined.some(text => text.includes(frequent)), false);
+    assert.deepEqual(await evaluate(worker, "historyPrefixQueries"), ["history"],
+      "adding words must reuse the complete prefix set without another Chrome query");
+    const widened = await setHistorySearch(cdp, "history");
+    assert.ok(widened.some(text => text.includes(frequent)), "removing words should also filter immediately");
+
+    for (const query of ["127.0.0.1 usual", "127.0.0.1usual", "127.0.0.1/usual"]) {
+      await press(cdp, "Escape", "Escape", 27);
+      await cdp.send("Input.insertText", { text: query });
+      await waitFor(() => hasAccessibleText(cdp, frequent));
+      assert.equal((await optionTexts(cdp)).some(text => text.includes(rare)), false,
+        "combined site/page queries should exclude other destinations");
+    }
+    await press(cdp, "Escape", "Escape", 27);
+    await cdp.send("Input.insertText", { text: "history" });
+    await waitFor(() => hasAccessibleText(cdp, frequent));
+    let options = await optionTexts(cdp);
+    assert.ok(options[0].includes("History saved"), "saved commands should remain first");
+    assert.ok(options[1].includes(rare), "shorter matching URLs should rank ahead of more visited URLs");
+    assert.equal(options.filter(text => text.includes(saved)).length, 0, "saved URLs should not recur in history");
+    assert.equal(options.some(text => text.includes(global)), false, "site scope excludes other hostnames");
+    assert.equal(await hasAccessibleNode(cdp, "separator", "Browsing history"), true);
+
+    await press(cdp, "Tab", "Tab", 9);
+    await waitFor(() => hasAccessibleText(cdp, global));
+    assert.equal(await accessibleNodeFocused(cdp, "searchbox", "Search commands"), true);
+    assert.equal(await accessibleNodeDomProperty(cdp, "searchbox", "Search commands", "placeholder"),
+      "Search all commands and history");
+    await press(cdp, "Tab", "Tab", 9);
+    await waitFor(async () => (await optionTexts(cdp)).some(text => text.includes(frequent)));
+    assert.equal((await optionTexts(cdp)).some(text => text.includes(global)), false);
+
+    await press(cdp, "Escape", "Escape", 27);
+    assert.equal(await hasAccessibleNode(cdp, "separator", "Browsing history"), false,
+      "clearing search should remove history immediately");
+    assert.equal((await optionTexts(cdp)).some(text => text.includes(frequent)), false);
+    await press(cdp, "Tab", "Tab", 9);
+    assert.equal(await hasAccessibleNode(cdp, "separator", "Browsing history"), false,
+      "global scope should also show no history when search is blank");
+    await press(cdp, "Tab", "Tab", 9);
+    await cdp.send("Input.insertText", { text: "history" });
+    await waitFor(() => hasAccessibleText(cdp, frequent));
+
+    await evaluate(worker, `globalThis.originalPendingSearch = searchHistory;
+      searchHistory = async (message, sender) => {
+        const result = await originalPendingSearch(message, sender);
+        if (SiteCommandPaletteCore.historySearchPrefix(message.query, new URL(sender.url).hostname) === 'pending') {
+          await new Promise(resolve => { globalThis.releasePendingSearch = resolve; });
+        }
+        return result;
+      };`);
+    await setHistorySearch(cdp, "pending");
+    await waitFor(() => evaluate(worker, "typeof releasePendingSearch === 'function'"));
+    await setHistorySearch(cdp, "pending usual");
+    await evaluate(worker, "releasePendingSearch()");
+    await waitFor(() => hasAccessibleText(cdp, pendingUsual));
+    assert.equal((await optionTexts(cdp)).some(text => text.includes(pendingRare)), false,
+      "a pending prefix response must apply the latest refinement");
+    assert.equal(await evaluate(worker, "historyPrefixQueries.filter(prefix => prefix === 'pending').length"), 1);
+    await evaluate(worker, "searchHistory = originalPendingSearch");
+    await setHistorySearch(cdp, "history");
+    await waitFor(() => hasAccessibleText(cdp, frequent));
+
+    // Complete an older response after a newer query to verify stale results are ignored.
+    await evaluate(worker, `globalThis.originalHistorySearch = searchHistory;
+      searchHistory = async (message, sender) => {
+        if (message.query === 'rare') globalThis.oldHistorySearchStarted = true;
+        const result = await originalHistorySearch(message, sender);
+        if (message.query === 'rare') {
+          await new Promise(resolve => setTimeout(resolve, 400));
+          globalThis.oldHistorySearchFinished = true;
+        }
+        return result;
+      };`);
+    await press(cdp, "Escape", "Escape", 27);
+    await cdp.send("Input.insertText", { text: "rare" });
+    // Wait for the first query to reach the worker, rather than guessing its debounce timing.
+    await waitFor(() => evaluate(worker, "globalThis.oldHistorySearchStarted === true"));
+    await press(cdp, "Escape", "Escape", 27);
+    await cdp.send("Input.insertText", { text: "usual" });
+    await waitFor(() => hasAccessibleText(cdp, frequent));
+    await waitFor(() => evaluate(worker, "globalThis.oldHistorySearchFinished === true"));
+    assert.equal((await optionTexts(cdp)).some(text => text.includes(rare)), false);
+    const { nodes } = await cdp.send("Accessibility.getFullAXTree");
+    assert.equal(nodes.some(node => node.role?.value === "button" && /^(Edit|Remove) /.test(node.name?.value)), false);
+    assert.equal(await hasAccessibleText(cdp, "delete"), false, "history rows have no delete shortcut");
+
+    const before = await pageTargetCount(port);
+    await press(cdp, "Enter", "Enter", 13, 2);
+    await waitFor(async () => (await pageTargetCount(port)) === before + 1);
+    await waitFor(async () => !(await hasPalette(cdp)));
+    await openPalette(cdp);
+    await cdp.send("Input.insertText", { text: "usual" });
+    await waitFor(() => hasAccessibleText(cdp, frequent));
+    await press(cdp, "Enter", "Enter", 13);
+    await waitFor(() => evaluate(cdp, `location.href === ${JSON.stringify(frequent)}`));
+  } finally {
+    cdp?.close();
+    worker?.close();
+    if (browser) await stopProcess(browser);
+    if (server.listening) await new Promise(resolve => server.close(resolve));
+    await rm(workspace, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+  }
+});
+
+async function optionTexts(cdp) {
+  const { nodes } = await cdp.send("Accessibility.getFullAXTree");
+  return nodes.filter(node => node.role?.value === "option").map(node => node.name?.value ?? "");
+}
+
+async function setHistorySearch(cdp, query) {
+  const { nodes } = await cdp.send("Accessibility.getFullAXTree");
+  const node = nodes.find(node => node.role?.value === "searchbox" && node.name?.value === "Search commands");
+  assert.ok(node?.backendDOMNodeId, "palette search must be accessible");
+  const { object } = await cdp.send("DOM.resolveNode", { backendNodeId: node.backendDOMNodeId });
+  const { result } = await cdp.send("Runtime.callFunctionOn", {
+    objectId: object.objectId, arguments: [{ value: query }], returnByValue: true,
+    functionDeclaration: `function(query) {
+      this.value = query;
+      this.dispatchEvent(new Event('input', {bubbles: true}));
+      return [...this.getRootNode().querySelectorAll('.command')].map(row => row.textContent);
+    }`
+  });
+  return result.value;
+}
+
+async function verifyHistoryPermissionControls(cdp) {
+  // Simulate responses from Chrome's native permission dialog; the separate
+  // history fixture exercises actual API access after permission is granted.
+  assert.equal(await evaluate(cdp, "document.getElementById('include-history').checked"), false);
+  await evaluate(cdp, `globalThis.originalPermissions = {
+      contains: chrome.permissions.contains, request: chrome.permissions.request, remove: chrome.permissions.remove
+    };
+    globalThis.testHistoryAccess = false;
+    chrome.permissions.contains = async permissions => permissions.permissions?.includes('history')
+      ? testHistoryAccess : originalPermissions.contains(permissions);
+    chrome.permissions.request = async () => false;
+    document.getElementById('include-history').click();`);
+  try {
+    await waitFor(() => evaluate(cdp, "document.getElementById('history-message').textContent === 'History access was not granted.'"));
+    assert.equal(await evaluate(cdp, "document.getElementById('include-history').checked"), false);
+    await evaluate(cdp, `chrome.permissions.request = async () => { testHistoryAccess = true; return true; };
+      document.getElementById('include-history').click();`);
+    await waitFor(() => evaluate(cdp, "document.getElementById('history-message').textContent === 'Browsing history enabled.'"));
+    assert.equal(await evaluateAsync(cdp, "chrome.storage.local.get('historyEnabled').then(data => data.historyEnabled)"), true);
+    await evaluate(cdp, `chrome.permissions.remove = async () => { testHistoryAccess = false; return true; };
+      document.getElementById('include-history').click();`);
+    await waitFor(() => evaluate(cdp, "document.getElementById('history-message').textContent === 'Browsing history disabled.'"));
+    assert.equal(await evaluateAsync(cdp, "chrome.storage.local.get('historyEnabled').then(data => data.historyEnabled)"), false);
+  } finally {
+    await evaluate(cdp, "Object.assign(chrome.permissions, originalPermissions)");
+  }
+}
+
+async function evaluateAsync(cdp, expression) {
+  let timer;
+  const result = await Promise.race([
+    cdp.send("Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true }),
+    new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error("Asynchronous browser evaluation timed out")), 10_000);
+    })
+  ]).finally(() => clearTimeout(timer));
   if (result.exceptionDetails) throw new Error(JSON.stringify(result.exceptionDetails));
   return result.result.value;
 }

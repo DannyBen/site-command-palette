@@ -16,6 +16,9 @@ without leaving the keyboard.
 - Backtick opens the palette; Alt+Backtick also works from editable fields.
 - Arrow keys select a command, Enter activates it, and Escape clears or closes.
 - Tab toggles between commands in the current scope and all saved commands.
+- Optional browsing-history search follows the same scope toggle and favors stronger matches and shorter URLs.
+  Enable **Include browsing history** in Settings and allow Chrome's history permission.
+  History results appear after you start typing; adding words filters the fetched results immediately.
 - Ctrl+Enter opens the selected command in a new tab.
 - Default shortcuts use Alt+A to add, Alt+E to edit, and Alt+X to delete.
 - Activation and palette-action shortcuts are configurable in Settings.

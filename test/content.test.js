@@ -18,6 +18,8 @@ async function contentScript() {
     }
   };
   const context = {
+    setTimeout,
+    clearTimeout,
     SiteCommandPaletteCore: core,
     SiteCommandPaletteStorage: {
       COMMANDS_STORAGE_KEY: core.COMMANDS_STORAGE_KEY,

@@ -16,6 +16,7 @@
         <nav class="section-navigation" aria-label="Settings sections">
           <a href="#theme-settings">Theme</a>
           <a href="#key-binding-settings">Key bindings</a>
+          <a href="#history-settings">History</a>
           <a href="#backup-settings">Backup</a>
           <a href="#disabled-site-settings">Disabled sites</a>
         </nav>
@@ -96,6 +97,27 @@
             <button type="button" class="key-binding-button" data-key-binding="remove"></button>
           </div>
           <p id="key-binding-message" class="key-binding-message" role="status" aria-live="polite"></p>
+        </div>
+      </section>
+
+      <section id="history-settings" class="panel" aria-labelledby="history-heading">
+        <div class="section-heading">
+          <div>
+            <h2 id="history-heading">Browsing history</h2>
+            <p>Find visited pages alongside your saved commands.</p>
+          </div>
+          <label class="history-preference">
+            <input id="include-history" type="checkbox">
+            <span>Include browsing history</span>
+          </label>
+        </div>
+        <div class="settings-group">
+          <p class="secondary-text">
+            Tab switches between this site and all sites for both commands and history.
+            Results favor stronger matches and shorter URLs.
+            Browsing history stays local and is excluded from backups.
+          </p>
+          <p id="history-message" class="backup-message" role="status" aria-live="polite"></p>
         </div>
       </section>
 

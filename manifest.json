@@ -14,6 +14,7 @@
     "storage",
     "activeTab"
   ],
+  "optional_permissions": ["history"],
   "action": {
     "default_popup": "popup.html"
   },

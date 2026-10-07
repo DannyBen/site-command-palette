@@ -290,6 +290,15 @@ button {
     grid-template-columns: minmax(0, 1fr) minmax(120px, 45%);
   }
 
+  &.history-link {
+    gap: 2px;
+
+    .command-detail {
+      text-align: left;
+      font-size: 12px;
+    }
+  }
+
   .command-name,
   .command-detail {
     display: block;
