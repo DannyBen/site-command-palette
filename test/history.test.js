@@ -33,6 +33,24 @@ test("exact URL matches outrank shorter fuzzy URLs, and titles provide a fallbac
   assert.deepEqual(results[2].detailIndices, []);
 });
 
+test("history ranks an early Facebook domain match before a shorter deep path match", () => {
+  const domain = "https://facebook.com/a-long-page-name";
+  const path = "https://a.co/somewhere/facebook";
+  assert.deepEqual(rankHistory([page(path), page(domain)], { query: "facebook" }).map(item => item.url),
+    [domain, path]);
+});
+
+test("history balances tightness and position for joined domain and page searches", () => {
+  const expected = [
+    "https://gitdan.com/", "https://github.com/danny", "https://something.com/git/dan",
+    "https://github.com/something/danny", "https://github.com/something/david/now"
+  ];
+  const items = [...expected].reverse().map(url => page(url));
+  for (const query of ["gitdan", "git dan"]) {
+    assert.deepEqual(rankHistory(items, { query }).map(item => item.url), expected);
+  }
+});
+
 test("partial history queries keep letters together and prefer the shorter repository", () => {
   const root = "https://github.com/dannyben/victor";
   const cli = `${root}-cli`;

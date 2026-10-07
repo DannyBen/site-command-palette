@@ -207,6 +207,8 @@
     const haystack = candidate.toLocaleLowerCase();
     // Continuing a run outweighs jumping to a new word's start (+4).
     const consecutiveBonus = 5;
+    const gapPenalty = 1;
+    const startPenalty = 0.5;
     let exactState = null;
     let exactIndex = haystack.indexOf(needle);
 
@@ -219,7 +221,8 @@
         ? 4
         : 0;
       exactState = betterFuzzyState(exactState, {
-        score: needle.length + wordStartBonus + (needle.length - 1) * consecutiveBonus,
+        score: needle.length + wordStartBonus + (needle.length - 1) * consecutiveBonus -
+          exactIndex * startPenalty,
         indices
       });
       exactIndex = haystack.indexOf(needle, exactIndex + 1);
@@ -240,10 +243,13 @@
       let bestSeparatedState = null;
 
       for (let index = 0; index < haystack.length; index += 1) {
-        if (index >= 2) {
+        if (index >= 2 && previousStates[index - 2]) {
+          const state = previousStates[index - 2];
+          // Account for each predecessor's position so extending the gap costs
+          // one point per skipped character without rescanning all predecessors.
           bestSeparatedState = betterFuzzyState(
             bestSeparatedState,
-            previousStates[index - 2]
+            { score: state.score + (index - 2) * gapPenalty, indices: state.indices }
           );
         }
         if (haystack[index] !== needle[needleIndex]) continue;
@@ -252,7 +258,7 @@
         if (index === 0 || /[\s/_-]/.test(haystack[index - 1])) characterScore += 4;
 
         if (needleIndex === 0) {
-          currentStates[index] = { score: characterScore, indices: [index] };
+          currentStates[index] = { score: characterScore - index * startPenalty, indices: [index] };
           continue;
         }
 
@@ -264,7 +270,7 @@
           : null;
         const separatedState = bestSeparatedState
           ? {
-              score: bestSeparatedState.score + characterScore,
+              score: bestSeparatedState.score + characterScore - (index - 1) * gapPenalty,
               indices: [...bestSeparatedState.indices, index]
             }
           : null;
