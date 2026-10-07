@@ -753,11 +753,11 @@
   }
 
   function searchHistory(query) {
-    if (!historyEnabled || !query || query.startsWith("/")) {
+    const prefix = historySearchPrefix(query);
+    if (!historyEnabled || !prefix || query.startsWith("/")) {
       clearHistorySearch(!historyEnabled);
       return;
     }
-    const prefix = historySearchPrefix(query, location.hostname);
     if (historyCache?.prefix === prefix) {
       clearHistorySearch(false);
       historyItems = rankHistory(historyCache.candidates, {

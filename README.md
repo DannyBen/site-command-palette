@@ -35,11 +35,12 @@ History search is off by default. In Settings, under **Browsing history**, click
 **Enable history search** and allow Chrome's history permission. **Disable history search**
 turns it off and removes the permission.
 
-Start typing to find visited pages below your saved commands. Tab switches between
-this site and all sites; the search prompt shows the current scope. Stronger
+Type at least three characters to find visited pages below your saved commands.
+Tab switches between this site and all sites; the search prompt shows the current scope. Stronger
 matches and shorter URLs come first. For example, `github vic` finds a repository,
 while adding `pull` narrows the search to its pull requests. Adding words filters
-results immediately, and a blank search shows no history.
+results immediately. The first three characters retrieve candidates; the full
+query fuzzy-matches them. Shorter searches show no history.
 
 History stays local, is excluded from backups, and is not shown in incognito tabs.
 

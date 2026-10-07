@@ -61,11 +61,11 @@ test("site history uses the exact hostname and excludes saved, duplicate and uns
   assert.equal(results[0].type, "history");
 });
 
-test("history has a URL fallback for missing titles and is limited to eight results", () => {
+test("history has a URL fallback for missing titles and is limited to ten results", () => {
   const results = rankHistory(Array.from({ length: 20 }, (_, index) =>
     page(`https://github.com/${index}`, index, { title: "" })
   ), { query: "git", now });
-  assert.equal(results.length, 8);
+  assert.equal(results.length, 10);
   assert.equal(results[0].url, "https://github.com/0");
   assert.equal(results[0].name, results[0].url);
 });
@@ -84,15 +84,19 @@ test("history accepts spaced and joined site/page queries while preserving order
   assert.equal(rankHistory([page(victor)], { query: "github nonexistent", now }).length, 0);
 });
 
-test("history prefixes stay stable when more words or joined site/page text are added", () => {
-  for (const query of ["github", "github victor", "github victor pull", "githubvictor", "github/victor"]) {
-    assert.equal(historySearchPrefix(query, "github.com"), "github");
+test("history requires three characters and keeps a fixed prefix for joined refinements", () => {
+  for (const query of ["", " ", "h", "hi", "  hi  "]) {
+    assert.equal(historySearchPrefix(query), "");
   }
-  assert.equal(historySearchPrefix("github.com/victor", "github.com"), "github.com");
-  assert.equal(historySearchPrefix("https://github.com/victor", "github.com"), "github.com");
-  assert.equal(historySearchPrefix("victor github", "github.com"), "victor");
-  assert.equal(historySearchPrefix("githubvictor", "example.com"), "githubvictor");
-  assert.equal(historySearchPrefix("amazon", "a.com"), "amazon");
+  for (const query of ["github", "github danny", "githubdanny", "github/victor", " GITHUB "]) {
+    assert.equal(historySearchPrefix(query), "git");
+  }
+  for (const query of ["dannyben", "dannyben vic", "dannybenvic"]) {
+    assert.equal(historySearchPrefix(query), "dan");
+  }
+  assert.equal(historySearchPrefix("victor github"), "vic");
+  assert.equal(historySearchPrefix("amazon"), "ama");
+  assert.equal(historySearchPrefix("https://github.com/victor"), "htt");
 });
 
 async function worker({ granted = false, items = [], saved = {} } = {}) {
@@ -162,34 +166,36 @@ test("worker returns the complete prefix candidate set with only URLs and titles
   items.push(page("chrome://history/"));
   const script = await worker({ granted: true, items });
   const results = await script.search({ query: "github victor pull" });
-  assert.equal(script.searches[0].text, "github");
+  assert.equal(script.searches[0].text, "git");
   assert.equal(script.searches[0].startTime, 0);
   assert.equal(script.searches[0].maxResults, 0);
-  assert.equal(results.candidates.length, 120, "cache must include entries beyond the eight visible results");
+  assert.equal(results.candidates.length, 120, "cache must include entries beyond the ten visible results");
   assert.deepEqual(Object.keys(results.candidates[0]), ["url", "title"]);
   assert.equal(rankHistory(results.candidates, { query: "github victor pull 119" })[0].url,
     "https://github.com/dannyben/victor/pull/119");
 });
 
-test("blank and whitespace searches never query or return history", async () => {
+test("searches shorter than three characters never query history", async () => {
   const script = await worker({ granted: true, items: [page("https://github.com/usual")] });
-  for (const query of [undefined, "", "   "]) {
+  for (const query of [undefined, "", "   ", "h", "hi", "  hi  "]) {
     assert.equal((await script.search({ query })).candidates.length, 0);
-    assert.deepEqual(rankHistory([page("https://github.com/usual")], { query }), []);
   }
   assert.equal(script.searches.length, 0);
+  for (const query of [undefined, "", "   "]) {
+    assert.deepEqual(rankHistory([page("https://github.com/usual")], { query }), []);
+  }
 });
 
-test("site-prefixed retrieval keeps all candidates for local ranking and both scopes", async () => {
+test("fixed-prefix retrieval works on other sites and retains candidates for both scopes", async () => {
   const victor = "https://github.com/dannyben/victor";
   const script = await worker({ granted: true, items: [page(victor), page("https://example.com/victor")] });
   for (const scope of ["site", "all"]) {
-    for (const query of ["github victor", "githubvictor", "github/victor"]) {
-      const result = await script.search({ query, scope });
-      assert.equal(script.searches.at(-1).text, "github");
+    for (const query of ["githubdanny", "github danny", "dannybenvic", "dannyben vic"]) {
+      const result = await script.search({ query, scope }, { url: "https://example.com/", tab: {} });
+      assert.equal(script.searches.at(-1).text, query.slice(0, 3));
       assert.equal(result.candidates.length, 2);
-      const ranked = rankHistory(result.candidates, { query, hostname: scope === "site" ? "github.com" : null });
-      assert.deepEqual(ranked.map(item => item.url), [victor]);
+      const ranked = rankHistory(result.candidates, { query, hostname: scope === "site" ? "example.com" : null });
+      assert.deepEqual(ranked.map(item => item.url), scope === "site" ? [] : [victor]);
     }
   }
 });

@@ -60,10 +60,10 @@ async function searchHistory(message, sender) {
       !(await chrome.permissions.contains({ permissions: ["history"] }))) {
     return { candidates: [] };
   }
-  const prefix = historySearchPrefix(query, hostname);
+  const prefix = historySearchPrefix(query);
   if (!prefix) return { candidates: [] };
   // Chromium treats maxResults: 0 as unlimited. Local refinements need the
-  // complete prefix set, including entries outside the eight visible results.
+  // complete prefix set, including entries outside the ten visible results.
   const items = await chrome.history.search({ text: prefix, startTime: 0, maxResults: 0 });
   // Permission may have been removed while Chrome was searching.
   if (!(await chrome.permissions.contains({ permissions: ["history"] }))) return { candidates: [] };

@@ -779,7 +779,7 @@ test("history results use real Chrome history and follow palette scope and navig
       };
     })()`);
     for (const scope of ["site", "all"]) {
-      for (const query of ["github vi", "github vic", "github vict", "githubvic", "github/vic", "github victor", "githubvictor", "github/victor"]) {
+      for (const query of ["github vi", "github vic", "github vict", "githubvic", "github/vic", "github victor", "githubvictor", "github/victor", "githubdanny", "dannybenvic"]) {
         const urls = await evaluateAsync(worker, `searchHistory(
           ${JSON.stringify({ query, scope })}, {url: 'https://github.com/', tab: {}}
         ).then(result => SiteCommandPaletteCore.rankHistory(result.candidates, {
@@ -792,17 +792,46 @@ test("history results use real Chrome history and follow palette scope and navig
     await openPalette(cdp);
     assert.equal(await hasAccessibleNode(cdp, "separator", "Browsing history"), false,
       "opening the palette with blank search should show saved commands only");
-    await cdp.send("Input.insertText", { text: "history" });
+    for (const query of ["h", "hi"]) {
+      await setHistorySearch(cdp, query);
+      assert.equal(await hasAccessibleNode(cdp, "separator", "Browsing history"), false,
+        "searches shorter than three characters should show no history");
+    }
+    assert.deepEqual(await evaluate(worker, "historyPrefixQueries"), []);
+    await setHistorySearch(cdp, "his");
     await waitFor(() => hasAccessibleText(cdp, frequent));
-    assert.deepEqual(await evaluate(worker, "historyPrefixQueries"), ["history"]);
+    assert.deepEqual(await evaluate(worker, "historyPrefixQueries"), ["his"]);
+    const joined = await setHistorySearch(cdp, "historyusual");
+    assert.ok(joined.some(text => text.includes(frequent)), "joined text should fuzzy-match the cached candidates");
     const refined = await setHistorySearch(cdp, "history rare detail 119");
     assert.ok(refined.some(text => text.includes(deepHistory)),
-      "refinement must immediately find candidates outside the eight original results");
+      "refinement must immediately find candidates outside the ten original results");
     assert.equal(refined.some(text => text.includes(frequent)), false);
-    assert.deepEqual(await evaluate(worker, "historyPrefixQueries"), ["history"],
+    assert.deepEqual(await evaluate(worker, "historyPrefixQueries"), ["his"],
       "adding words must reuse the complete prefix set without another Chrome query");
     const widened = await setHistorySearch(cdp, "history");
     assert.ok(widened.some(text => text.includes(frequent)), "removing words should also filter immediately");
+    await setHistorySearch(cdp, "hi");
+    assert.equal(await hasAccessibleNode(cdp, "separator", "Browsing history"), false,
+      "deleting below the threshold should immediately hide existing history results");
+    const restored = await setHistorySearch(cdp, "history");
+    assert.ok(restored.some(text => text.includes(frequent)), "returning to the prefix should reuse cached history");
+    assert.deepEqual(await evaluate(worker, "historyPrefixQueries"), ["his"]);
+
+    await press(cdp, "Tab", "Tab", 9);
+    for (const query of ["githubdanny", "dannybenvic"]) {
+      await setHistorySearch(cdp, query);
+      await waitFor(() => hasAccessibleText(cdp, victor));
+    }
+    assert.deepEqual(await evaluate(worker, "historyPrefixQueries"), ["his", "git", "dan"],
+      "joined GitHub searches on another website should retrieve fixed three-character prefixes");
+    await press(cdp, "Tab", "Tab", 9);
+    assert.equal(await hasAccessibleText(cdp, victor), false, "site scope should exclude the global GitHub result");
+    await press(cdp, "Tab", "Tab", 9);
+    await waitFor(() => hasAccessibleText(cdp, victor));
+    assert.deepEqual(await evaluate(worker, "historyPrefixQueries"), ["his", "git", "dan"],
+      "scope toggles should reuse the complete cached candidate set");
+    await press(cdp, "Tab", "Tab", 9);
 
     for (const query of ["127.0.0.1 usual", "127.0.0.1usual", "127.0.0.1/usual"]) {
       await press(cdp, "Escape", "Escape", 27);
@@ -821,6 +850,7 @@ test("history results use real Chrome history and follow palette scope and navig
     assert.equal(options.some(text => text.includes(global)), false, "site scope excludes other hostnames");
     assert.equal(await hasAccessibleNode(cdp, "separator", "Browsing history"), true);
 
+    const queriesBeforeScopeToggle = await evaluate(worker, "historyPrefixQueries");
     await press(cdp, "Tab", "Tab", 9);
     await waitFor(() => hasAccessibleText(cdp, global));
     assert.equal(await accessibleNodeFocused(cdp, "searchbox", "Search commands"), true);
@@ -829,6 +859,8 @@ test("history results use real Chrome history and follow palette scope and navig
     await press(cdp, "Tab", "Tab", 9);
     await waitFor(async () => (await optionTexts(cdp)).some(text => text.includes(frequent)));
     assert.equal((await optionTexts(cdp)).some(text => text.includes(global)), false);
+    assert.deepEqual(await evaluate(worker, "historyPrefixQueries"), queriesBeforeScopeToggle,
+      "site/global filtering should not trigger additional history retrieval");
 
     await press(cdp, "Escape", "Escape", 27);
     assert.equal(await hasAccessibleNode(cdp, "separator", "Browsing history"), false,
@@ -844,7 +876,7 @@ test("history results use real Chrome history and follow palette scope and navig
     await evaluate(worker, `globalThis.originalPendingSearch = searchHistory;
       searchHistory = async (message, sender) => {
         const result = await originalPendingSearch(message, sender);
-        if (SiteCommandPaletteCore.historySearchPrefix(message.query, new URL(sender.url).hostname) === 'pending') {
+        if (SiteCommandPaletteCore.historySearchPrefix(message.query) === 'pen') {
           await new Promise(resolve => { globalThis.releasePendingSearch = resolve; });
         }
         return result;
@@ -856,7 +888,7 @@ test("history results use real Chrome history and follow palette scope and navig
     await waitFor(() => hasAccessibleText(cdp, pendingUsual));
     assert.equal((await optionTexts(cdp)).some(text => text.includes(pendingRare)), false,
       "a pending prefix response must apply the latest refinement");
-    assert.equal(await evaluate(worker, "historyPrefixQueries.filter(prefix => prefix === 'pending').length"), 1);
+    assert.equal(await evaluate(worker, "historyPrefixQueries.filter(prefix => prefix === 'pen').length"), 1);
     await evaluate(worker, "searchHistory = originalPendingSearch");
     await setHistorySearch(cdp, "history");
     await waitFor(() => hasAccessibleText(cdp, frequent));

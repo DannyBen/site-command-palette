@@ -46,14 +46,9 @@
     }
   }
 
-  function historySearchPrefix(query, hostname) {
-    const firstWord = query.trim().replace(/^https?:\/\//i, "").split(/[\s/]+/, 1)[0].toLocaleLowerCase();
-    const sitePrefix = hostname.replace(/^www\./, "").split(".")[0];
-    for (const prefix of [hostname, sitePrefix]) {
-      if (prefix.length < 3 || !firstWord.startsWith(prefix)) continue;
-      if (/^[\p{L}\p{N}]/u.test(firstWord.slice(prefix.length))) return prefix;
-    }
-    return firstWord;
+  function historySearchPrefix(query) {
+    const input = query.trim().toLocaleLowerCase();
+    return input.length < 3 ? "" : input.slice(0, 3);
   }
 
   function rankHistory(items, { query = "", hostname = null, excludedUrls = [] } = {}) {
@@ -86,7 +81,7 @@
       }];
     }).sort((left, right) => right.quality - left.quality || right.score - left.score ||
       left.url.length - right.url.length || left.url.localeCompare(right.url))
-      .slice(0, 8).map((item) => ({
+      .slice(0, 10).map((item) => ({
         ...item,
         match: matchHistory(item.name) ?? { score: 0, indices: [] },
         detailIndices: item.urlMatch?.indices ?? []

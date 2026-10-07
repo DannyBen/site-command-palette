@@ -13,23 +13,14 @@ Your data stays yours. Commands and preferences are stored locally in your brows
 KEY FEATURES
 
 • Contextual commands — see links for the current site by default, or switch to all your saved commands with a single key.
-
 • Fast fuzzy search — find a command by typing a few letters, even when they are spread across its site and page names.
-
 • Optional browsing history — find visited pages below your saved commands, for this site or across all sites. Stronger matches and shorter URLs come first; adding words narrows results immediately.
-
 • Keyboard-first navigation — open the palette, search, select, and navigate without reaching for the mouse.
-
 • Flexible scope — save commands for one site, make them available everywhere, or use a custom site pattern.
-
 • Quick actions — add the current page, edit saved commands, open links in a new tab, and change the current site's theme directly from the palette.
-
 • Your choice of appearance — use Light, Dark, or System theme globally, with optional overrides for individual sites.
-
 • Configurable shortcuts — customize the keys used to open the palette and manage commands.
-
 • Site controls — completely disable the extension on sites where you do not want it to run.
-
 • Optional local backups — keep versioned JSON backups in a folder you choose on your computer.
 
 HOW TO USE IT
@@ -43,8 +34,7 @@ HOW TO USE IT
 
 LICENSE AND WARRANTY
 
-Site Command Palette is open source under the MIT License and is provided as
-is, without warranty.
+Site Command Palette is open source under the MIT License and is provided as is, without warranty.
 
 Source code:
 https://github.com/DannyBen/site-command-palette
