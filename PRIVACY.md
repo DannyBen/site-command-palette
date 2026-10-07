@@ -16,7 +16,7 @@ palette and use the current hostname to show relevant commands. When you choose
 to add a command, it also uses the current page's title and URL to prefill the
 form. This page information is not transmitted.
 
-If you enable **Include browsing history**, the extension requests Chrome's
+If you click **Enable history search** in Settings, the extension requests Chrome's
 optional history permission. It uses visited page titles and URLs to show and
 rank history results by match quality and URL length. Matching pages are kept
 temporarily in memory while the palette is open so added search words can filter

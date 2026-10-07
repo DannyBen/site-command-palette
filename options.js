@@ -36,7 +36,8 @@
   const systemTheme = matchMedia("(prefers-color-scheme: dark)");
 
   const globalTheme = document.getElementById("global-theme");
-  const includeHistory = document.getElementById("include-history");
+  const toggleHistory = document.getElementById("toggle-history");
+  const historyState = document.getElementById("history-state");
   const historyMessage = document.getElementById("history-message");
   const extensionVersion = document.getElementById("extension-version");
   const overrideList = document.getElementById("override-list");
@@ -71,11 +72,13 @@
   let pendingDirectory = null;
   let currentBackupState = null;
   let capturingBinding = null;
+  let historyAccess = false;
+  let changingHistoryAccess = false;
 
   extensionVersion.textContent = `· Version ${chrome.runtime.getManifest().version}`;
 
   globalTheme.addEventListener("change", saveGlobalTheme);
-  includeHistory.addEventListener("change", changeHistoryAccess);
+  toggleHistory.addEventListener("click", changeHistoryAccess);
   chrome.permissions.onAdded.addListener(renderHistoryAccess);
   chrome.permissions.onRemoved.addListener(renderHistoryAccess);
   overrideList.addEventListener("change", updateSiteTheme);
@@ -110,31 +113,39 @@
   }
 
   async function renderHistoryAccess() {
-    includeHistory.checked = await chrome.permissions.contains({ permissions: ["history"] });
+    historyAccess = await chrome.permissions.contains({ permissions: ["history"] });
+    historyState.textContent = historyAccess ? "Enabled" : "Disabled";
+    historyState.dataset.status = historyAccess ? "active" : "idle";
+    toggleHistory.textContent = historyAccess ? "Disable history search" : "Enable history search";
+    toggleHistory.classList.toggle("primary-button", !historyAccess);
+    toggleHistory.disabled = changingHistoryAccess;
   }
 
   async function changeHistoryAccess() {
-    const requested = includeHistory.checked;
-    includeHistory.disabled = true;
+    if (changingHistoryAccess) return;
+    const requested = !historyAccess;
+    changingHistoryAccess = true;
+    toggleHistory.disabled = true;
     historyMessage.textContent = "";
     try {
-      // Request directly from the checkbox gesture, before any other await.
+      // Request directly from the button gesture, before any other await.
       if (requested) await chrome.permissions.request({ permissions: ["history"] });
       else await chrome.permissions.remove({ permissions: ["history"] });
       await renderHistoryAccess();
-      await chrome.storage.local.set({ [HISTORY_ENABLED_STORAGE_KEY]: includeHistory.checked });
-      const changed = requested === includeHistory.checked;
-      historyMessage.textContent = requested && !includeHistory.checked
+      await chrome.storage.local.set({ [HISTORY_ENABLED_STORAGE_KEY]: historyAccess });
+      const changed = requested === historyAccess;
+      historyMessage.textContent = requested && !historyAccess
         ? "History access was not granted."
-        : !requested && includeHistory.checked ? "History access could not be removed."
-        : includeHistory.checked ? "Browsing history enabled." : "Browsing history disabled.";
+        : !requested && historyAccess ? "History access could not be removed."
+        : historyAccess ? "Browsing history enabled." : "Browsing history disabled.";
       historyMessage.dataset.status = changed ? "success" : "error";
     } catch (error) {
       historyMessage.textContent = error.message;
       historyMessage.dataset.status = "error";
       await renderHistoryAccess();
     } finally {
-      includeHistory.disabled = false;
+      changingHistoryAccess = false;
+      toggleHistory.disabled = false;
     }
   }
 

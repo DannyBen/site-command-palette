@@ -17,8 +17,6 @@ without leaving the keyboard.
 - Arrow keys select a command, Enter activates it, and Escape clears or closes.
 - Tab toggles between commands in the current scope and all saved commands.
 - Optional browsing-history search follows the same scope toggle and favors stronger matches and shorter URLs.
-  Enable **Include browsing history** in Settings and allow Chrome's history permission.
-  History results appear after you start typing; adding words filters the fetched results immediately.
 - Ctrl+Enter opens the selected command in a new tab.
 - Default shortcuts use Alt+A to add, Alt+E to edit, and Alt+X to delete.
 - Activation and palette-action shortcuts are configurable in Settings.
@@ -30,6 +28,20 @@ without leaving the keyboard.
   If Chrome removes folder access, backups pause and a red `!` appears on the extension icon.
   Open Settings and click **Reconnect folder** to approve access and back up the latest data.
 - Page shortcuts are suppressed while the palette is open.
+
+## Browsing History
+
+History search is off by default. In Settings, under **Browsing history**, click
+**Enable history search** and allow Chrome's history permission. **Disable history search**
+turns it off and removes the permission.
+
+Start typing to find visited pages below your saved commands. Tab switches between
+this site and all sites; the search prompt shows the current scope. Stronger
+matches and shorter URLs come first. For example, `github vic` finds a repository,
+while adding `pull` narrows the search to its pull requests. Adding words filters
+results immediately, and a blank search shows no history.
+
+History stays local, is excluded from backups, and is not shown in incognito tabs.
 
 ## Install from Source
 

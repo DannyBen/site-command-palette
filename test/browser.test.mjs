@@ -927,25 +927,46 @@ async function setHistorySearch(cdp, query) {
 async function verifyHistoryPermissionControls(cdp) {
   // Simulate responses from Chrome's native permission dialog; the separate
   // history fixture exercises actual API access after permission is granted.
-  assert.equal(await evaluate(cdp, "document.getElementById('include-history').checked"), false);
+  await waitFor(() => evaluate(cdp, "!document.getElementById('toggle-history').disabled"));
+  assert.equal(await evaluate(cdp, "document.getElementById('toggle-history').textContent"), "Enable history search");
+  assert.equal(await evaluate(cdp, "document.getElementById('history-state').textContent"), "Disabled");
   await evaluate(cdp, `globalThis.originalPermissions = {
       contains: chrome.permissions.contains, request: chrome.permissions.request, remove: chrome.permissions.remove
     };
     globalThis.testHistoryAccess = false;
     chrome.permissions.contains = async permissions => permissions.permissions?.includes('history')
       ? testHistoryAccess : originalPermissions.contains(permissions);
-    chrome.permissions.request = async () => false;
-    document.getElementById('include-history').click();`);
+    globalThis.testHistoryRequestCount = 0;
+    chrome.permissions.request = () => {
+      testHistoryRequestCount++;
+      return new Promise(resolve => { globalThis.resolveTestHistoryRequest = resolve; });
+    };
+    document.getElementById('toggle-history').click();`);
   try {
+    assert.equal(await evaluate(cdp, "document.getElementById('toggle-history').disabled"), true);
+    await evaluate(cdp, "document.getElementById('toggle-history').click()");
+    assert.equal(await evaluate(cdp, "testHistoryRequestCount"), 1,
+      "the history control must not submit another request while permission is pending");
+    await evaluate(cdp, "resolveTestHistoryRequest(false)");
     await waitFor(() => evaluate(cdp, "document.getElementById('history-message').textContent === 'History access was not granted.'"));
-    assert.equal(await evaluate(cdp, "document.getElementById('include-history').checked"), false);
+    assert.equal(await evaluate(cdp, "document.getElementById('toggle-history').textContent"), "Enable history search");
+    assert.equal(await evaluate(cdp, "document.getElementById('history-state').textContent"), "Disabled");
     await evaluate(cdp, `chrome.permissions.request = async () => { testHistoryAccess = true; return true; };
-      document.getElementById('include-history').click();`);
+      document.getElementById('toggle-history').click();`);
     await waitFor(() => evaluate(cdp, "document.getElementById('history-message').textContent === 'Browsing history enabled.'"));
+    assert.equal(await evaluate(cdp, "document.getElementById('toggle-history').textContent"), "Disable history search");
+    assert.equal(await evaluate(cdp, "document.getElementById('history-state').textContent"), "Enabled");
     assert.equal(await evaluateAsync(cdp, "chrome.storage.local.get('historyEnabled').then(data => data.historyEnabled)"), true);
+    await evaluate(cdp, `chrome.permissions.remove = async () => false;
+      document.getElementById('toggle-history').click();`);
+    await waitFor(() => evaluate(cdp, "document.getElementById('history-message').textContent === 'History access could not be removed.'"));
+    assert.equal(await evaluate(cdp, "document.getElementById('toggle-history').textContent"), "Disable history search");
+    assert.equal(await evaluate(cdp, "document.getElementById('history-state').textContent"), "Enabled");
     await evaluate(cdp, `chrome.permissions.remove = async () => { testHistoryAccess = false; return true; };
-      document.getElementById('include-history').click();`);
+      document.getElementById('toggle-history').click();`);
     await waitFor(() => evaluate(cdp, "document.getElementById('history-message').textContent === 'Browsing history disabled.'"));
+    assert.equal(await evaluate(cdp, "document.getElementById('toggle-history').textContent"), "Enable history search");
+    assert.equal(await evaluate(cdp, "document.getElementById('history-state').textContent"), "Disabled");
     assert.equal(await evaluateAsync(cdp, "chrome.storage.local.get('historyEnabled').then(data => data.historyEnabled)"), false);
   } finally {
     await evaluate(cdp, "Object.assign(chrome.permissions, originalPermissions)");

@@ -104,14 +104,14 @@
         <div class="section-heading">
           <div>
             <h2 id="history-heading">Browsing history</h2>
-            <p>Find visited pages alongside your saved commands.</p>
+            <p>Search your browser’s visited pages alongside your saved commands.</p>
           </div>
-          <label class="history-preference">
-            <input id="include-history" type="checkbox">
-            <span>Include browsing history</span>
-          </label>
+          <p id="history-state" class="state-badge">Disabled</p>
         </div>
         <div class="settings-group">
+          <div class="button-row">
+            <button id="toggle-history" type="button" class="primary-button" disabled>Enable history search</button>
+          </div>
           <p class="secondary-text">
             Tab switches between this site and all sites for both commands and history.
             Results favor stronger matches and shorter URLs.
