@@ -51,7 +51,7 @@
     return input.length < 3 ? "" : input.slice(0, 3);
   }
 
-  function rankHistory(items, { query = "", hostname = null, excludedUrls = [] } = {}) {
+  function rankHistory(items, { query = "", hostname = null, excludedUrls = [], limit = 10 } = {}) {
     query = query.trim();
     if (!query) return [];
     const excluded = new Set(excludedUrls.map(normalizeUrl));
@@ -81,7 +81,7 @@
       }];
     }).sort((left, right) => right.quality - left.quality || right.score - left.score ||
       left.url.length - right.url.length || left.url.localeCompare(right.url))
-      .slice(0, 10).map((item) => ({
+      .slice(0, limit).map((item) => ({
         ...item,
         match: matchHistory(item.name) ?? { score: 0, indices: [] },
         detailIndices: item.urlMatch?.indices ?? []
@@ -429,6 +429,9 @@
         : "light",
       siteThemes,
       disabledHostnames,
+      historyResultLimit: [3, 5, 10, 15, 20].includes(storedSettings.historyResultLimit)
+        ? storedSettings.historyResultLimit
+        : 10,
       keyBindings: normalizeKeyBindings(storedSettings.keyBindings)
     };
   }

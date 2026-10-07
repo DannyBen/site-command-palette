@@ -88,6 +88,16 @@ test("history has a URL fallback for missing titles and is limited to ten result
   assert.equal(results[0].name, results[0].url);
 });
 
+test("history applies every configurable display limit after matching and ranking", () => {
+  const items = Array.from({ length: 30 }, (_, index) => page(`https://github.com/${index}`));
+  for (const limit of [3, 5, 10, 15, 20]) {
+    const results = rankHistory(items, { query: "git", limit });
+    assert.equal(results.length, limit);
+    assert.equal(results[0].url, "https://github.com/0");
+    assert.equal(rankHistory(items, { query: "github.com/29", limit })[0].url, "https://github.com/29");
+  }
+});
+
 test("history accepts spaced and joined site/page queries while preserving order", () => {
   const victor = "https://github.com/dannyben/victor";
   const items = [page(victor), page("https://github.com/dannyben/other"),

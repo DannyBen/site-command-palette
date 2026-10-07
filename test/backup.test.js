@@ -18,7 +18,7 @@ test("backup documents round-trip normalized extension data", async () => {
         { id: "docs", name: "Documentation", url: "https://example.com/docs" }
       ]
     },
-    settings: { theme: "dark", siteThemes: {} }
+    settings: { theme: "dark", siteThemes: {}, historyResultLimit: 20 }
   }).data;
   const document = createBackupDocument(data, "2026-09-29T12:00:00.000Z");
 
@@ -31,6 +31,7 @@ test("backup documents round-trip normalized extension data", async () => {
     "site-command-palette-backup-2026-09-29T12-00-00-000Z.json"
   );
   assert.deepEqual(parseBackupDocument(JSON.stringify(document), migrateStorage), data);
+  assert.equal(document.data.settings.historyResultLimit, 20);
   assert.deepEqual(
     await readBackupFile({
       getFile: async () => ({ text: async () => JSON.stringify(document) })

@@ -39,6 +39,7 @@
   const toggleHistory = document.getElementById("toggle-history");
   const historyState = document.getElementById("history-state");
   const historyMessage = document.getElementById("history-message");
+  const historyResultLimit = document.getElementById("history-result-limit");
   const extensionVersion = document.getElementById("extension-version");
   const overrideList = document.getElementById("override-list");
   const emptyOverrides = document.getElementById("empty-overrides");
@@ -79,6 +80,7 @@
 
   globalTheme.addEventListener("change", saveGlobalTheme);
   toggleHistory.addEventListener("click", changeHistoryAccess);
+  historyResultLimit.addEventListener("change", saveHistoryResultLimit);
   chrome.permissions.onAdded.addListener(renderHistoryAccess);
   chrome.permissions.onRemoved.addListener(renderHistoryAccess);
   overrideList.addEventListener("change", updateSiteTheme);
@@ -119,6 +121,7 @@
     toggleHistory.textContent = historyAccess ? "Disable history search" : "Enable history search";
     toggleHistory.classList.toggle("primary-button", !historyAccess);
     toggleHistory.disabled = changingHistoryAccess;
+    historyResultLimit.disabled = !historyAccess;
   }
 
   async function changeHistoryAccess() {
@@ -157,6 +160,7 @@
 
   function render() {
     globalTheme.value = settings.theme;
+    historyResultLimit.value = String(settings.historyResultLimit);
     applyTheme();
     renderSiteThemes();
     renderDisabledSites();
@@ -335,6 +339,11 @@
   async function saveGlobalTheme() {
     settings.theme = globalTheme.value;
     await storeSettings("Global theme saved");
+  }
+
+  async function saveHistoryResultLimit() {
+    settings.historyResultLimit = Number(historyResultLimit.value);
+    await storeSettings("History result limit saved");
   }
 
   async function updateSiteTheme(event) {
@@ -687,6 +696,7 @@
     const storedSettings = data[SETTINGS_STORAGE_KEY];
 
     return commandCount > 0 || storedSettings.theme !== "light" ||
+      storedSettings.historyResultLimit !== 10 ||
       Object.keys(storedSettings.siteThemes).length > 0 ||
       storedSettings.disabledHostnames.length > 0;
   }

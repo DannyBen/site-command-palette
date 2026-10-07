@@ -109,8 +109,15 @@
           <p id="history-state" class="state-badge">Disabled</p>
         </div>
         <div class="settings-group">
-          <div class="button-row">
+          <div class="button-row history-controls">
             <button id="toggle-history" type="button" class="primary-button" disabled>Enable history search</button>
+            <select id="history-result-limit" aria-label="History results" disabled>
+              <option value="3">Show 3 results</option>
+              <option value="5">Show 5 results</option>
+              <option value="10" selected>Show 10 results</option>
+              <option value="15">Show 15 results</option>
+              <option value="20">Show 20 results</option>
+            </select>
           </div>
           <p class="secondary-text">
             Tab switches between this site and all sites for both commands and history.

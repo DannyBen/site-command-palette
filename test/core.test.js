@@ -337,6 +337,7 @@ test("normalizeSettings supplies defaults and discards invalid values", () => {
     theme: "light",
     siteThemes: {},
     disabledHostnames: [],
+    historyResultLimit: 10,
     keyBindings: { ...DEFAULT_KEY_BINDINGS }
   });
   assert.deepEqual(
@@ -362,6 +363,7 @@ test("normalizeSettings supplies defaults and discards invalid values", () => {
         "light.example": "light"
       },
       disabledHostnames: ["example.com", "app.example.com"],
+      historyResultLimit: 10,
       keyBindings: {
         ...DEFAULT_KEY_BINDINGS,
         toggleAlternate: null,
@@ -371,6 +373,15 @@ test("normalizeSettings supplies defaults and discards invalid values", () => {
   );
 
   assert.equal(normalizeSettings({ theme: "system" }).theme, "system");
+});
+
+test("history result settings accept the dropdown choices and default invalid values to ten", () => {
+  for (const historyResultLimit of [3, 5, 10, 15, 20]) {
+    assert.equal(normalizeSettings({ historyResultLimit }).historyResultLimit, historyResultLimit);
+  }
+  for (const historyResultLimit of [undefined, null, 0, -1, 4, 50, 100, "5", 3.5]) {
+    assert.equal(normalizeSettings({ historyResultLimit }).historyResultLimit, 10);
+  }
 });
 
 test("isSiteDisabled matches exact normalized hostnames", () => {
@@ -424,6 +435,7 @@ test("migrateStorage upgrades legacy data and normalizes saved commands", () => 
     theme: "dark",
     siteThemes: { "example.com": "light" },
     disabledHostnames: [],
+    historyResultLimit: 10,
     keyBindings: { ...DEFAULT_KEY_BINDINGS }
   });
 });

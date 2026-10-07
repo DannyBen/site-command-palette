@@ -778,6 +778,15 @@ test("history results use real Chrome history and follow palette scope and navig
         return nativeHistorySearch(query);
       };
     })()`);
+    await evaluateAsync(worker, "chrome.runtime.openOptionsPage()");
+    const optionsTarget = await waitForOptionsTarget(port);
+    const optionsCdp = await connectCdp(optionsTarget.webSocketDebuggerUrl);
+    try {
+      await verifyHistoryResultLimitSetting(optionsCdp);
+    } finally {
+      optionsCdp.close();
+    }
+    await cdp.send("Page.bringToFront");
     for (const scope of ["site", "all"]) {
       for (const query of ["github vi", "github vic", "github vict", "githubvic", "github/vic", "github victor", "githubvictor", "github/victor", "githubdanny", "dannybenvic"]) {
         const urls = await evaluateAsync(worker, `searchHistory(
@@ -801,6 +810,17 @@ test("history results use real Chrome history and follow palette scope and navig
     await setHistorySearch(cdp, "his");
     await waitFor(() => hasAccessibleText(cdp, frequent));
     assert.deepEqual(await evaluate(worker, "historyPrefixQueries"), ["his"]);
+    for (const limit of [3, 5, 10, 15, 20, 10]) {
+      await evaluateAsync(worker, `(async () => {
+        const {settings} = await chrome.storage.local.get('settings');
+        await chrome.storage.local.set({settings: {...settings, historyResultLimit: ${limit}}});
+      })()`);
+      await waitFor(async () => (await optionTexts(cdp)).length === limit + 1);
+      assert.ok((await optionTexts(cdp))[0].includes("History saved"),
+        "the history limit should leave matching saved commands in place");
+    }
+    assert.deepEqual(await evaluate(worker, "historyPrefixQueries"), ["his"],
+      "changing the display limit should rerank cached candidates without another history request");
     const joined = await setHistorySearch(cdp, "historyusual");
     assert.ok(joined.some(text => text.includes(frequent)), "joined text should fuzzy-match the cached candidates");
     const refined = await setHistorySearch(cdp, "history rare detail 119");
@@ -956,12 +976,42 @@ async function setHistorySearch(cdp, query) {
   return result.value;
 }
 
+async function verifyHistoryResultLimitSetting(cdp) {
+  await waitFor(() => evaluate(cdp, "document.getElementById('history-result-limit')?.value === '10'"));
+  await waitFor(() => evaluate(cdp, "!document.getElementById('history-result-limit').disabled"));
+  assert.deepEqual(await evaluate(cdp,
+    "[...document.getElementById('history-result-limit').options].map(option => option.value)"),
+    ["3", "5", "10", "15", "20"]);
+  assert.deepEqual(await evaluate(cdp,
+    "[...document.getElementById('history-result-limit').options].map(option => option.textContent)"),
+    ["Show 3 results", "Show 5 results", "Show 10 results", "Show 15 results", "Show 20 results"]);
+  assert.equal(await hasAccessibleNode(cdp, "combobox", "History results"), true);
+  await evaluate(cdp, `(() => {
+    const select = document.getElementById('history-result-limit');
+    select.value = '15';
+    select.dispatchEvent(new Event('change', {bubbles: true}));
+  })()`);
+  await waitFor(() => evaluateAsync(cdp,
+    "chrome.storage.local.get('settings').then(data => data.settings.historyResultLimit === 15)"));
+  await cdp.send("Page.reload");
+  await waitFor(() => evaluate(cdp, "document.getElementById('history-result-limit')?.value === '15'"));
+  await evaluate(cdp, `(() => {
+    const select = document.getElementById('history-result-limit');
+    select.value = '10';
+    select.dispatchEvent(new Event('change', {bubbles: true}));
+  })()`);
+  await waitFor(() => evaluateAsync(cdp,
+    "chrome.storage.local.get('settings').then(data => data.settings.historyResultLimit === 10)"));
+}
+
 async function verifyHistoryPermissionControls(cdp) {
   // Simulate responses from Chrome's native permission dialog; the separate
   // history fixture exercises actual API access after permission is granted.
   await waitFor(() => evaluate(cdp, "!document.getElementById('toggle-history').disabled"));
   assert.equal(await evaluate(cdp, "document.getElementById('toggle-history').textContent"), "Enable history search");
   assert.equal(await evaluate(cdp, "document.getElementById('history-state').textContent"), "Disabled");
+  assert.equal(await evaluate(cdp, "document.getElementById('history-result-limit').disabled"), true);
+  const buttonWidth = await evaluate(cdp, "document.getElementById('toggle-history').getBoundingClientRect().width");
   await evaluate(cdp, `globalThis.originalPermissions = {
       contains: chrome.permissions.contains, request: chrome.permissions.request, remove: chrome.permissions.remove
     };
@@ -981,22 +1031,32 @@ async function verifyHistoryPermissionControls(cdp) {
       "the history control must not submit another request while permission is pending");
     await evaluate(cdp, "resolveTestHistoryRequest(false)");
     await waitFor(() => evaluate(cdp, "document.getElementById('history-message').textContent === 'History access was not granted.'"));
+    assert.equal(await evaluate(cdp, "document.getElementById('history-result-limit').disabled"), true);
     assert.equal(await evaluate(cdp, "document.getElementById('toggle-history').textContent"), "Enable history search");
     assert.equal(await evaluate(cdp, "document.getElementById('history-state').textContent"), "Disabled");
     await evaluate(cdp, `chrome.permissions.request = async () => { testHistoryAccess = true; return true; };
       document.getElementById('toggle-history').click();`);
     await waitFor(() => evaluate(cdp, "document.getElementById('history-message').textContent === 'Browsing history enabled.'"));
+    assert.equal(await evaluate(cdp, "document.getElementById('history-result-limit').disabled"), false);
     assert.equal(await evaluate(cdp, "document.getElementById('toggle-history').textContent"), "Disable history search");
+    assert.equal(await evaluate(cdp, "document.getElementById('toggle-history').getBoundingClientRect().width"), buttonWidth,
+      "the history button should retain its width when its label changes");
+    assert.equal(await evaluate(cdp, `(() => {
+      const button = document.getElementById('toggle-history');
+      return button.scrollWidth <= button.clientWidth;
+    })()`), true, "the longer disable label should fit inside the fixed button width");
     assert.equal(await evaluate(cdp, "document.getElementById('history-state').textContent"), "Enabled");
     assert.equal(await evaluateAsync(cdp, "chrome.storage.local.get('historyEnabled').then(data => data.historyEnabled)"), true);
     await evaluate(cdp, `chrome.permissions.remove = async () => false;
       document.getElementById('toggle-history').click();`);
     await waitFor(() => evaluate(cdp, "document.getElementById('history-message').textContent === 'History access could not be removed.'"));
+    assert.equal(await evaluate(cdp, "document.getElementById('history-result-limit').disabled"), false);
     assert.equal(await evaluate(cdp, "document.getElementById('toggle-history').textContent"), "Disable history search");
     assert.equal(await evaluate(cdp, "document.getElementById('history-state').textContent"), "Enabled");
     await evaluate(cdp, `chrome.permissions.remove = async () => { testHistoryAccess = false; return true; };
       document.getElementById('toggle-history').click();`);
     await waitFor(() => evaluate(cdp, "document.getElementById('history-message').textContent === 'Browsing history disabled.'"));
+    assert.equal(await evaluate(cdp, "document.getElementById('history-result-limit').disabled"), true);
     assert.equal(await evaluate(cdp, "document.getElementById('toggle-history').textContent"), "Enable history search");
     assert.equal(await evaluate(cdp, "document.getElementById('history-state').textContent"), "Disabled");
     assert.equal(await evaluateAsync(cdp, "chrome.storage.local.get('historyEnabled').then(data => data.historyEnabled)"), false);

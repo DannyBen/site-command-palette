@@ -242,6 +242,11 @@ select {
     border-color: var(--interaction-color);
     box-shadow: 0 0 0 3px var(--focus-ring-color);
   }
+
+  &:disabled {
+    cursor: default;
+    opacity: 0.5;
+  }
 }
 
 .site-themes {
@@ -553,6 +558,12 @@ select {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+
+  &.history-controls button {
+    width: 190px;
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
 
   button {
     padding: 8px 12px;

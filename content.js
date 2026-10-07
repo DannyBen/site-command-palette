@@ -762,6 +762,7 @@
       clearHistorySearch(false);
       historyItems = rankHistory(historyCache.candidates, {
         query, hostname: showAllCommands ? null : location.hostname,
+        limit: settings.historyResultLimit,
         excludedUrls: resolveAllCommands(commandsByScope).map((command) => command.url)
       });
       return;
@@ -1116,13 +1117,15 @@
 
     if (!changes[SETTINGS_STORAGE_KEY]) return;
 
+    const previousHistoryResultLimit = settings.historyResultLimit;
     settings = normalizeSettings(changes[SETTINGS_STORAGE_KEY].newValue);
     if (isSiteDisabled(settings, location)) {
       disableCurrentSite();
       return;
     }
     applyTheme();
-    if (palette?.mode === "list" && palette.search.value.trim().startsWith("/")) {
+    if (palette?.mode === "list" &&
+        (palette.search.value.trim().startsWith("/") || settings.historyResultLimit !== previousHistoryResultLimit)) {
       filterAndRender();
     }
   }
