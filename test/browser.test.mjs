@@ -125,7 +125,7 @@ test("palette keyboard, theme, and settings flows work in Chromium", { timeout: 
 
     assert.equal(
       await accessibleNodeDomProperty(cdp, "searchbox", "Search commands", "placeholder"),
-      "Search Command palette browser test commands"
+      "Search 127.0.0.1 commands"
     );
     await press(cdp, "Tab", "Tab", 9);
     assert.equal(
@@ -156,7 +156,7 @@ test("palette keyboard, theme, and settings flows work in Chromium", { timeout: 
     await press(cdp, "Tab", "Tab", 9);
     assert.equal(
       await accessibleNodeDomProperty(cdp, "searchbox", "Search commands", "placeholder"),
-      "Search Command palette browser test commands"
+      "Search 127.0.0.1 commands"
     );
     const viewportHeight = await evaluate(cdp, "innerHeight");
     const edgeGap = Math.min(72, Math.max(16, viewportHeight * 0.12));
@@ -216,15 +216,15 @@ test("palette keyboard, theme, and settings flows work in Chromium", { timeout: 
       await accessibleNodeChildStyle(
         cdp,
         "button",
-        "Edit Command palette browser test › Duplicate",
+        "Edit 127.0.0.1 › Duplicate",
         ".icon",
         "maskImage"
       ),
       /^url\("chrome-extension:\/\//,
       "row actions should use packaged extension icon assets"
     );
-    const editName = "Edit Command palette browser test › Duplicate";
-    const removeName = "Remove Command palette browser test › Duplicate";
+    const editName = "Edit 127.0.0.1 › Duplicate";
+    const removeName = "Remove 127.0.0.1 › Duplicate";
     await focusAccessibleNode(cdp, "button", editName);
     const editFocusStyle = [
       await accessibleNodeStyle(cdp, "button", editName, "backgroundColor"),
@@ -281,13 +281,13 @@ test("palette keyboard, theme, and settings flows work in Chromium", { timeout: 
     await setAccessibleInputValue(cdp, "URL", "https://github.com/");
     await setAccessibleInputValue(cdp, "Scope", "127.*");
     await activateAccessibleNode(cdp, "button", "Save command");
-    await waitFor(async () => hasAccessibleNode(cdp, "button", "Edit Github › External"));
+    await waitFor(async () => hasAccessibleNode(cdp, "button", "Edit github.com › External"));
     assert.equal(
       await hasAccessibleNode(cdp, "separator", "External commands"),
       false,
       "a destination on another host should be internal when its wildcard scope matches"
     );
-    await activateAccessibleNode(cdp, "button", "Edit Github › External");
+    await activateAccessibleNode(cdp, "button", "Edit github.com › External");
     await waitFor(async () => hasAccessibleNode(cdp, "heading", "Edit command"));
     await setAccessibleInputValue(cdp, "Scope", "*");
     await activateAccessibleNode(cdp, "button", "Update command");
@@ -316,7 +316,7 @@ test("palette keyboard, theme, and settings flows work in Chromium", { timeout: 
     );
     await openPalette(cdp);
     await cdp.send("Input.insertText", { text: "External" });
-    await waitFor(async () => (await selectedOptionText(cdp)).includes("Github › External"));
+    await waitFor(async () => (await selectedOptionText(cdp)).includes("github.com › External"));
     const pageTargetCountBefore = await pageTargetCount(port);
     // Releasing Enter in the newly opened tab leaves no keyup in this tab.
     await cdp.send("Input.dispatchKeyEvent", {
@@ -380,7 +380,7 @@ test("palette keyboard, theme, and settings flows work in Chromium", { timeout: 
       await accessibleNodeClosestStyle(
         cdp,
         "button",
-        "Remove Github › External",
+        "Remove github.com › External",
         ".command-actions",
         "opacity"
       )
@@ -392,7 +392,7 @@ test("palette keyboard, theme, and settings flows work in Chromium", { timeout: 
       "separator",
       "External commands"
     )));
-    await waitFor(async () => (await selectedOptionText(cdp)).includes("Github › External"));
+    await waitFor(async () => (await selectedOptionText(cdp)).includes("github.com › External"));
     await press(cdp, "x", "KeyX", 88, 1);
     await waitFor(async () => hasAccessibleNode(
       cdp,

@@ -501,9 +501,9 @@
     return sites;
   }
 
-  function siteNameForUrl(sites, urlValue, title = "") {
+  function siteNameForUrl(sites, urlValue) {
     const hostname = siteIdentity(urlValue);
-    return sites[hostname]?.name ?? suggestSiteName(urlValue, title);
+    return sites[hostname]?.name ?? hostname ?? "Site";
   }
 
   function findCommandNameConflict(commandsByScope, scope, page, url, excludedId = null) {

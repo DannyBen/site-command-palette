@@ -21,7 +21,6 @@
     siteIdentity,
     siteNameForUrl,
     suggestPageName,
-    suggestSiteName,
     urlMatchesPage
   } = globalThis.SiteCommandPaletteCore;
   const {
@@ -332,8 +331,14 @@
       <section class="palette" role="dialog" aria-modal="true" aria-label="Site command palette">
         <div class="list-view">
           <header>
-            <input class="search" type="search" autocomplete="off" spellcheck="false"
-              aria-label="Search commands" placeholder="Search commands">
+            <div class="search-field">
+              <span class="search-prompt">
+                <span class="search-scope" id="search-scope" aria-live="polite"></span>
+                <span aria-hidden="true">›</span>
+              </span>
+              <input class="search" type="search" autocomplete="off" spellcheck="false"
+                aria-label="Search commands" aria-describedby="search-scope" placeholder="Search commands">
+            </div>
           </header>
           <div class="command-area">
             <div class="commands" role="listbox" aria-label="Commands"></div>
@@ -395,6 +400,7 @@
       listView: overlay.querySelector(".list-view"),
       addView: overlay.querySelector(".add-view"),
       search: overlay.querySelector(".search"),
+      searchScope: overlay.querySelector(".search-scope"),
       commandList: overlay.querySelector(".commands"),
       message: overlay.querySelector(".message"),
       footer: overlay.querySelector("footer"),
@@ -500,7 +506,7 @@
     palette.saveButton.textContent = "Save command";
     palette.url.value = location.href;
     formSiteHostname = siteIdentity(location.href);
-    palette.siteName.value = siteNameForUrl(sitesByHostname, location.href, document.title);
+    palette.siteName.value = siteNameForUrl(sitesByHostname, location.href);
     palette.pageName.value = suggestPageName(location.href);
     palette.scopePattern.value = location.hostname;
     siteNameEdited = false;
@@ -545,11 +551,13 @@
     if (!palette) return;
 
     if (showAllCommands) {
+      palette.searchScope.textContent = "global";
       palette.search.placeholder = historyEnabled ? "Search all commands and history" : "Search all commands";
       return;
     }
 
-    const siteName = siteNameForUrl(sitesByHostname, location, document.title);
+    const siteName = siteNameForUrl(sitesByHostname, location);
+    palette.searchScope.textContent = siteName;
     palette.search.placeholder = `Search ${siteName} commands${historyEnabled ? " and history" : ""}`;
   }
 

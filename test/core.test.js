@@ -284,6 +284,11 @@ test("site names are shared by destination identity", () => {
     siteNameForUrl(sites, "https://mail.google.com/mail/u/0/#spam"),
     "Gmail"
   );
+  assert.equal(
+    siteNameForUrl(sites, "https://www.calcalist.co.il/home/0,7340,L-8,00.html"),
+    "calcalist.co.il"
+  );
+  assert.equal(siteNameForUrl(sites, "https://docs.github.com/en"), "docs.github.com");
 });
 
 test("urlMatchesPage compares normalized HTTP URLs exactly", () => {
