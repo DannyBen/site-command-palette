@@ -75,6 +75,7 @@
   let capturingBinding = null;
   let historyAccess = false;
   let changingHistoryAccess = false;
+  let savingHistoryResultLimit = false;
 
   extensionVersion.textContent = `· Version ${chrome.runtime.getManifest().version}`;
 
@@ -121,7 +122,7 @@
     toggleHistory.textContent = historyAccess ? "Disable history search" : "Enable history search";
     toggleHistory.classList.toggle("primary-button", !historyAccess);
     toggleHistory.disabled = changingHistoryAccess;
-    historyResultLimit.disabled = !historyAccess;
+    historyResultLimit.disabled = !historyAccess || savingHistoryResultLimit;
   }
 
   async function changeHistoryAccess() {
@@ -342,8 +343,23 @@
   }
 
   async function saveHistoryResultLimit() {
+    if (savingHistoryResultLimit) return;
+    const previousLimit = settings.historyResultLimit;
+    savingHistoryResultLimit = true;
+    historyResultLimit.disabled = true;
+    historyMessage.textContent = "";
     settings.historyResultLimit = Number(historyResultLimit.value);
-    await storeSettings("History result limit saved");
+    try {
+      await storeSettings("History result limit saved");
+    } catch {
+      settings.historyResultLimit = previousLimit;
+      historyResultLimit.value = String(previousLimit);
+      historyMessage.textContent = "Could not save history result limit. Try again.";
+      historyMessage.dataset.status = "error";
+    } finally {
+      savingHistoryResultLimit = false;
+      historyResultLimit.disabled = !historyAccess;
+    }
   }
 
   async function updateSiteTheme(event) {

@@ -995,6 +995,42 @@ async function verifyHistoryResultLimitSetting(cdp) {
     "chrome.storage.local.get('settings').then(data => data.settings.historyResultLimit === 15)"));
   await cdp.send("Page.reload");
   await waitFor(() => evaluate(cdp, "document.getElementById('history-result-limit')?.value === '15'"));
+  await waitFor(() => evaluate(cdp, "!document.getElementById('history-result-limit').disabled"));
+  await evaluate(cdp, `globalThis.originalHistorySettingsSet = chrome.storage.local.set;
+    globalThis.historySettingsRejections = [];
+    globalThis.recordHistorySettingsRejection = event => historySettingsRejections.push(event.reason.message);
+    window.addEventListener('unhandledrejection', recordHistorySettingsRejection);
+    chrome.storage.local.set = () => new Promise((resolve, reject) => {
+      globalThis.rejectHistorySettingsSave = reject;
+    });
+    document.getElementById('history-result-limit').value = '20';
+    document.getElementById('history-result-limit').dispatchEvent(new Event('change', {bubbles: true}));`);
+  try {
+    assert.equal(await evaluate(cdp, "document.getElementById('history-result-limit').disabled"), true,
+      "the dropdown should prevent overlapping saves while storage is pending");
+    await evaluate(cdp, "rejectHistorySettingsSave(new Error('Simulated storage failure'))");
+    await waitFor(() => evaluate(cdp,
+      "document.getElementById('history-message').textContent === 'Could not save history result limit. Try again.'"));
+    assert.equal(await evaluate(cdp, "document.getElementById('history-result-limit').value"), "15",
+      "a rejected save should restore the last saved dropdown value");
+    assert.equal(await evaluate(cdp, "document.getElementById('history-result-limit').disabled"), false);
+    assert.equal(await evaluate(cdp, "document.getElementById('history-message').dataset.status"), "error");
+    assert.equal(await evaluateAsync(cdp,
+      "chrome.storage.local.get('settings').then(data => data.settings.historyResultLimit)"), 15);
+    assert.deepEqual(await evaluate(cdp, "historySettingsRejections"), []);
+  } finally {
+    await evaluate(cdp, `chrome.storage.local.set = originalHistorySettingsSet;
+      window.removeEventListener('unhandledrejection', recordHistorySettingsRejection);`);
+  }
+  await evaluate(cdp, `(() => {
+    const select = document.getElementById('history-result-limit');
+    select.value = '20';
+    select.dispatchEvent(new Event('change', {bubbles: true}));
+  })()`);
+  await waitFor(() => evaluateAsync(cdp,
+    "chrome.storage.local.get('settings').then(data => data.settings.historyResultLimit === 20)"));
+  assert.equal(await evaluate(cdp, "document.getElementById('history-message').textContent"), "",
+    "retrying after a rejected save should clear the previous error");
   await evaluate(cdp, `(() => {
     const select = document.getElementById('history-result-limit');
     select.value = '10';
