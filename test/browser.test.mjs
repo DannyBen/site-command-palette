@@ -276,6 +276,37 @@ test("palette keyboard, theme, and settings flows work in Chromium", { timeout: 
     await waitFor(async () => hasAccessibleNode(cdp, "searchbox", "Search commands"));
 
     await press(cdp, "a", "KeyA", 65, 1);
+    await setAccessibleInputValue(cdp, "Page", "   ");
+    await activateAccessibleNode(cdp, "button", "Save command");
+    await waitFor(() => hasAccessibleNode(cdp, "button", "Edit Fixture"));
+    await cdp.send("Input.insertText", { text: "Fixture" });
+    await waitFor(async () => (await selectedOptionText(cdp)) === "Fixture");
+    assert.equal(await hasAccessibleNode(cdp, "button", "Edit Fixture › Zulu"), true);
+
+    await cdp.send("Page.reload");
+    await waitFor(() => evaluate(cdp, "document.readyState === 'complete'"));
+    await openPalette(cdp);
+    await waitFor(() => hasAccessibleNode(cdp, "button", "Edit Fixture"));
+    await activateAccessibleNode(cdp, "button", "Edit Fixture");
+    assert.equal(await accessibleNodeDomProperty(cdp, "textbox", "Page", "value"), "");
+    assert.equal(await accessibleNodeDomProperty(cdp, "textbox", "Page", "placeholder"), "Optional");
+    await activateAccessibleNode(cdp, "button", "Update command");
+    await waitFor(() => hasAccessibleNode(cdp, "button", "Edit Fixture"));
+
+    await press(cdp, "a", "KeyA", 65, 1);
+    await setAccessibleInputValue(cdp, "Page", "");
+    await activateAccessibleNode(cdp, "button", "Save command");
+    await waitFor(async () => await accessibleNodeText(cdp, "alert") ===
+      "This command already exists in this scope.");
+    await setAccessibleInputValue(cdp, "URL", `${pageUrl}dashboard`);
+    await activateAccessibleNode(cdp, "button", "Save command");
+    await waitFor(async () => await accessibleNodeText(cdp, "alert") ===
+      "A command without a page name for this site already exists in this scope. Edit it instead.");
+    await press(cdp, "Escape", "Escape", 27);
+    await activateAccessibleNode(cdp, "button", "Remove Fixture");
+    await waitFor(async () => !(await hasAccessibleNode(cdp, "button", "Edit Fixture")));
+
+    await press(cdp, "a", "KeyA", 65, 1);
     await waitFor(async () => hasAccessibleNode(cdp, "heading", "Add command"));
     await cdp.send("Input.insertText", { text: "External" });
     await setAccessibleInputValue(cdp, "URL", "https://github.com/");

@@ -15,7 +15,8 @@ test("backup documents round-trip normalized extension data", async () => {
   const data = migrateStorage({
     commandsByHostname: {
       "example.com": [
-        { id: "docs", name: "Documentation", url: "https://example.com/docs" }
+        { id: "docs", name: "Documentation", url: "https://example.com/docs" },
+        { id: "home", page: "", url: "https://example.com/" }
       ]
     },
     settings: { theme: "dark", siteThemes: {}, historyResultLimit: 20 }
@@ -31,6 +32,9 @@ test("backup documents round-trip normalized extension data", async () => {
     "site-command-palette-backup-2026-09-29T12-00-00-000Z.json"
   );
   assert.deepEqual(parseBackupDocument(JSON.stringify(document), migrateStorage), data);
+  assert.deepEqual(data.commandsByHostname["example.com"][1], {
+    id: "home", page: "", url: "https://example.com/"
+  });
   assert.equal(document.data.settings.historyResultLimit, 20);
   assert.deepEqual(
     await readBackupFile({

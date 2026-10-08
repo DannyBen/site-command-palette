@@ -359,7 +359,7 @@
             </label>
             <label>
               <span class="field-heading">Page</span>
-              <input class="page-name" name="page-name" required autocomplete="off" aria-label="Page">
+              <input class="page-name" name="page-name" placeholder="Optional" autocomplete="off" aria-label="Page">
             </label>
           </div>
           <label>
@@ -628,12 +628,6 @@
       return;
     }
 
-    if (!page) {
-      setError("Enter a page name.");
-      palette.pageName.focus();
-      return;
-    }
-
     if (!url) {
       setError("Enter a valid HTTP or HTTPS URL.");
       palette.url.focus();
@@ -656,7 +650,9 @@
     if (conflict) {
       setError(conflict.url === url
         ? "This command already exists in this scope."
-        : `A “${page}” command for this site already exists in this scope. Edit it instead.`);
+        : page
+          ? `A “${page}” command for this site already exists in this scope. Edit it instead.`
+          : "A command without a page name for this site already exists in this scope. Edit it instead.");
       palette.pageName.focus();
       palette.pageName.select();
       return;
@@ -811,7 +807,9 @@
         ...command,
         type: "link",
         external: isCommandExternal(command, location),
-        name: `${siteNameForUrl(sitesByHostname, command.url)} › ${command.page}`
+        name: (command.page
+          ? `${siteNameForUrl(sitesByHostname, command.url)} › ${command.page}`
+          : siteNameForUrl(sitesByHostname, command.url))
           .replace(/\s+>\s+/g, " › ")
       }));
 

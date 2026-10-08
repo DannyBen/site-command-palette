@@ -484,7 +484,7 @@
     const pageValue = typeof value.page === "string" ? value.page : value.name;
     const page = typeof pageValue === "string" ? pageValue.trim() : "";
     const url = typeof value.url === "string" ? normalizeUrl(value.url) : null;
-    if (!id || !page || !url) return null;
+    if (!id || typeof pageValue !== "string" || !url) return null;
 
     return { id, page, url };
   }
@@ -513,7 +513,7 @@
   function findCommandNameConflict(commandsByScope, scope, page, url, excludedId = null) {
     const pageKey = commandNameKey(page);
     const hostname = siteIdentity(url);
-    if (!pageKey || !hostname) return null;
+    if (!hostname) return null;
 
     return (commandsByScope[scope] ?? []).find((command) => (
       command.id !== excludedId &&

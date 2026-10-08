@@ -118,6 +118,19 @@ test("normalizeCommandsByScope repairs duplicate command IDs", () => {
   });
 });
 
+test("normalization keeps blank page names while rejecting malformed commands", () => {
+  assert.deepEqual(normalizeCommandsByScope({
+    "github.com": [
+      { id: "home", page: "   ", url: "https://github.com/" },
+      { id: "missing", url: "https://github.com/" },
+      { id: "invalid-page", page: 42, url: "https://github.com/" },
+      { id: "unsafe", page: "", url: "javascript:alert(1)" }
+    ]
+  }), {
+    "github.com": [{ id: "home", page: "", url: "https://github.com/" }]
+  });
+});
+
 test("command names compare without case or repeated whitespace", () => {
   assert.equal(commandNameKey("  GitHub   Issues "), "github issues");
   assert.equal(commandNameKey(null), "");
@@ -162,6 +175,19 @@ test("findCommandNameConflict checks page names within one destination site and 
     ),
     null
   );
+});
+
+test("blank page names follow the same duplicate and scope override rules", () => {
+  const global = { id: "global", page: "", url: "https://github.com/" };
+  const local = { id: "local", page: "", url: "https://github.com/dashboard" };
+  const commandsByScope = { "*": [global], "example.com": [local] };
+  assert.equal(findCommandNameConflict(commandsByScope, "*", "  ", local.url), global);
+  assert.equal(findCommandNameConflict(commandsByScope, "*", "", global.url, "global"), null);
+  assert.equal(findCommandNameConflict(commandsByScope, "*", "", "https://facebook.com/"), null);
+  assert.equal(findCommandNameConflict(commandsByScope, "other.example", "", global.url), null);
+  assert.deepEqual(resolveCommandsForLocation(commandsByScope, "https://example.com/"), [
+    { ...local, scope: "example.com" }
+  ]);
 });
 
 test("resolveAllCommands includes commands from every scope", () => {
@@ -409,7 +435,7 @@ test("migrateStorage upgrades legacy data and normalizes saved commands", () => 
       "example.com": [
         { id: " command-1 ", name: " Documentation ", url: "https://example.com/docs" },
         { id: "unsafe", name: "Unsafe", url: "javascript:alert(1)" },
-        { id: "missing-name", name: "", url: "https://example.com" }
+        { id: "missing-name", url: "https://example.com" }
       ],
       invalid: "not a command list"
     },

@@ -11,7 +11,7 @@ without leaving the keyboard.
 ## Feature Highlights
 
 - Flexible command scopes: exact sites by default, with global and wildcard patterns when needed.
-- Commands use a consistent `Site › Page` name, with site names shared across matching destinations.
+- Commands use `Site › Page`, or just `Site` when Page is empty, with site names shared across matching destinations.
 - Fuzzy search with bold character highlighting and keyboard result selection.
 - Backtick opens the palette; Alt+Backtick also works from editable fields.
 - Arrow keys select a command, Enter activates it, and Escape clears or closes.
