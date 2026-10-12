@@ -6,6 +6,16 @@
   },
   "outputDirectory": "../store/screenshots",
   "paletteCropDirectory": "../store/palette-crops",
+  "history": [
+    {
+      "url": "https://github.com/dannyben/bashly",
+      "title": "Bashly — Bash CLI framework"
+    },
+    {
+      "url": "https://github.com/dannyben/site-command-palette",
+      "title": "Site Command Palette — Keyboard-first navigation"
+    }
+  ],
   "commands": [
     {
       "site": "Workspace",
@@ -64,6 +74,14 @@
       "theme": "dark",
       "paletteScope": "all",
       "paletteCrop": true
+    },
+    {
+      "name": "history-search-dark",
+      "screen": "list",
+      "theme": "dark",
+      "paletteScope": "all",
+      "query": "github",
+      "historyResults": true
     },
     {
       "name": "add-command-light",

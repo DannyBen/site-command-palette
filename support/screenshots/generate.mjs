@@ -2,8 +2,9 @@
 
 import { spawn } from "node:child_process";
 import { once } from "node:events";
+import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
-import { access, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { access, copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
@@ -42,6 +43,13 @@ await new Promise((resolve, reject) => {
 
 const fixtureUrl = `http://127.0.0.1:${server.address().port}/`;
 const profile = await mkdtemp(path.join(os.tmpdir(), "site-command-palette-screenshots-"));
+const captureExtension = config.history?.length
+  ? await prepareHistoryExtension(path.join(profile, "extension"))
+  : extensionRoot;
+const manifest = JSON.parse(await readFile(path.join(captureExtension, "manifest.json"), "utf8"));
+const extensionId = createHash("sha256").update(Buffer.from(manifest.key, "base64"))
+  .digest("hex").slice(0, 32)
+  .replace(/[0-9a-f]/g, digit => String.fromCharCode(97 + parseInt(digit, 16)));
 const chromium = await findChromium();
 const browser = spawn(chromium, [
   "--headless=new",
@@ -49,11 +57,11 @@ const browser = spawn(chromium, [
   "--disable-gpu",
   "--disable-crash-reporter",
   "--hide-scrollbars",
-  `--user-data-dir=${profile}`,
+  `--user-data-dir=${path.join(profile, "chrome")}`,
   "--remote-debugging-address=127.0.0.1",
   "--remote-debugging-port=0",
-  `--disable-extensions-except=${extensionRoot}`,
-  `--load-extension=${extensionRoot}`,
+  `--disable-extensions-except=${captureExtension}`,
+  `--load-extension=${captureExtension}`,
   "about:blank"
 ], {
   env: {
@@ -71,15 +79,26 @@ let pageCdp;
 let extensionCdp;
 
 try {
-  const port = await waitForDebuggingPort(profile, browser, () => browserErrors);
-  const extensionTarget = await waitForExtensionTarget(port, () => browserErrors);
+  const port = await waitForDebuggingPort(path.join(profile, "chrome"), browser, () => browserErrors);
+  const extensionTarget = await waitForExtensionTarget(port, extensionId, () => browserErrors);
   const pageTarget = await waitForPageTarget(port);
   const extensionOrigin = extensionTarget.url.replace(/\/background\.js$/, "");
 
   extensionCdp = await connectCdp(extensionTarget.webSocketDebuggerUrl);
   pageCdp = await connectCdp(pageTarget.webSocketDebuggerUrl);
   await extensionCdp.send("Runtime.enable");
+  await extensionCdp.send("Runtime.runIfWaitingForDebugger");
+  await waitFor(() => evaluate(extensionCdp, "Boolean(globalThis.SiteCommandPaletteCore)"));
   await pageCdp.send("Page.enable");
+  if (config.history?.length) {
+    await seedHistory(pageCdp, config.history);
+    await evaluateAsync(extensionCdp, "refreshHistoryAccess()");
+    await waitFor(() => evaluateAsync(extensionCdp, `(async () => {
+      const items = await chrome.history.search({ text: '', startTime: 0, maxResults: 0 });
+      return ${JSON.stringify(config.history)}.every(entry =>
+        items.some(item => item.url === entry.url && item.title === entry.title));
+    })()`));
+  }
   await pageCdp.send("Accessibility.enable");
   await pageCdp.send("Emulation.setDeviceMetricsOverride", {
     width: config.viewport.width,
@@ -102,13 +121,18 @@ try {
       await navigate(pageCdp, `${extensionOrigin}/options.html`);
       await waitFor(() => evaluate(
         pageCdp,
-        "document.readyState === 'complete' && Boolean(document.getElementById('global-theme'))"
+        `document.readyState === 'complete' &&
+          document.getElementById('extension-version')?.textContent.includes(${JSON.stringify(manifest.version)}) &&
+          document.getElementById('global-theme')?.value === ${JSON.stringify(screenshot.theme)}`
       ));
     } else {
       await navigate(pageCdp, `${fixtureUrl}?screenshot=${encodeURIComponent(screenshot.name)}`);
       await waitFor(() => evaluate(pageCdp, "document.readyState === 'complete'"));
       await openPalette(pageCdp);
       await preparePaletteScreen(pageCdp, screenshot);
+      if (screenshot.historyResults) {
+        await waitFor(() => hasAccessibleNode(pageCdp, "separator", "Browsing history"));
+      }
       if (screenshot.screen === "list") {
         await setAccessibleNodeStyle(
           pageCdp,
@@ -188,6 +212,11 @@ function validateConfig(value) {
   if (!Array.isArray(value.screenshots) || value.screenshots.length === 0) {
     throw new Error("screenshots must contain at least one entry");
   }
+  if (value.history !== undefined && (!Array.isArray(value.history) ||
+      value.history.some(entry => !core.normalizeUrl(entry?.url) ||
+        typeof entry.title !== "string" || !entry.title.trim()))) {
+    throw new Error("history entries require an HTTP or HTTPS url and a nonblank title");
+  }
 
   const names = new Set();
   for (const screenshot of value.screenshots) {
@@ -210,6 +239,13 @@ function validateConfig(value) {
     }
     if (screenshot.paletteCrop && screenshot.screen !== "list") {
       throw new Error(`paletteCrop requires a list screen for ${screenshot.name}`);
+    }
+    if (screenshot.historyResults !== undefined && typeof screenshot.historyResults !== "boolean") {
+      throw new Error(`historyResults for ${screenshot.name} must be boolean`);
+    }
+    if (screenshot.historyResults && (screenshot.screen !== "list" ||
+        !value.history?.length || !core.historySearchPrefix(screenshot.query ?? ""))) {
+      throw new Error(`historyResults requires a list screen, seeded history, and a query of at least three characters for ${screenshot.name}`);
     }
     if (screenshot.form) {
       if (!["add", "edit"].includes(screenshot.screen)) {
@@ -290,8 +326,58 @@ function buildStorage(screenshot, commands, fixtureBaseUrl) {
 
   return {
     ...data,
+    [core.HISTORY_ENABLED_STORAGE_KEY]: Boolean(config.history?.length),
     commandScope: screenshot.paletteScope === "all" ? "all" : "site"
   };
+}
+
+async function prepareHistoryExtension(directory) {
+  const manifest = JSON.parse(await readFile(path.join(extensionRoot, "manifest.json"), "utf8"));
+  // Headless Chrome cannot show optional-permission prompts. Grant history only
+  // in this temporary copy so screenshots exercise the real API with sample URLs.
+  manifest.permissions.push("history");
+  manifest.optional_permissions = manifest.optional_permissions.filter(permission => permission !== "history");
+  const files = new Set([
+    "background.js", "core.js", "storage.js", "backup.js", "content.js", "palette.css",
+    "popup.html", "popup.js", "popup.css", "options.html", "options.js", "options.css",
+    ...Object.values(manifest.icons),
+    ...manifest.web_accessible_resources.flatMap(entry => entry.resources)
+  ]);
+  await mkdir(directory);
+  for (const file of files) {
+    const destination = path.join(directory, file);
+    await mkdir(path.dirname(destination), { recursive: true });
+    await copyFile(path.join(extensionRoot, file), destination);
+  }
+  await writeFile(path.join(directory, "manifest.json"), JSON.stringify(manifest));
+  return directory;
+}
+
+async function seedHistory(cdp, entries) {
+  // Fulfill each navigation locally so Chrome records real titles and URLs
+  // without contacting the sample sites or loading third-party content.
+  await cdp.send("Fetch.enable", { patterns: [{ resourceType: "Document" }] });
+  try {
+    for (const entry of entries) {
+      const paused = cdp.once("Fetch.requestPaused");
+      const navigation = cdp.send("Page.navigate", { url: entry.url });
+      const request = await paused;
+      const title = entry.title.replace(/[&<>]/g, character => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;"
+      })[character]);
+      await cdp.send("Fetch.fulfillRequest", {
+        requestId: request.requestId,
+        responseCode: 200,
+        responseHeaders: [{ name: "Content-Type", value: "text/html; charset=utf-8" }],
+        body: Buffer.from(`<!doctype html><title>${title}</title><link rel="icon" href="data:,">`).toString("base64")
+      });
+      await navigation;
+      await waitFor(() => evaluate(cdp,
+        `document.readyState === 'complete' && document.title === ${JSON.stringify(entry.title)}`));
+    }
+  } finally {
+    await cdp.send("Fetch.disable");
+  }
 }
 
 async function seedStorage(cdp, storage) {
@@ -389,13 +475,13 @@ async function waitForPageTarget(port) {
   });
 }
 
-async function waitForExtensionTarget(port, errors) {
+async function waitForExtensionTarget(port, extensionId, errors) {
   try {
     return await waitFor(async () => {
       const targets = await listTargets(port);
       return targets.find((target) => (
         target.type === "service_worker" &&
-        target.url.startsWith("chrome-extension://") &&
+        target.url.startsWith(`chrome-extension://${extensionId}/`) &&
         target.url.endsWith("/background.js")
       ));
     }, 15_000);
@@ -416,11 +502,16 @@ async function listTargets(port) {
 async function connectCdp(url) {
   const socket = new WebSocket(url);
   const pending = new Map();
+  const events = new Map();
   let nextId = 1;
 
   socket.addEventListener("message", ({ data }) => {
     const message = JSON.parse(data);
-    if (!message.id) return;
+    if (!message.id) {
+      events.get(message.method)?.(message.params);
+      events.delete(message.method);
+      return;
+    }
     pending.get(message.id)?.(message);
     pending.delete(message.id);
   });
@@ -431,6 +522,7 @@ async function connectCdp(url) {
 
   return {
     close: () => socket.close(),
+    once: method => new Promise(resolve => events.set(method, resolve)),
     send(method, params = {}) {
       const id = nextId++;
       socket.send(JSON.stringify({ id, method, params }));
@@ -447,6 +539,16 @@ async function connectCdp(url) {
 async function evaluate(cdp, expression) {
   const result = await cdp.send("Runtime.evaluate", { expression, returnByValue: true });
   if (result.exceptionDetails) throw new Error(result.exceptionDetails.text);
+  return result.result.value;
+}
+
+async function evaluateAsync(cdp, expression) {
+  const result = await cdp.send("Runtime.evaluate", {
+    expression, awaitPromise: true, returnByValue: true
+  });
+  if (result.exceptionDetails) {
+    throw new Error(result.exceptionDetails.exception?.description ?? result.exceptionDetails.text);
+  }
   return result.result.value;
 }
 

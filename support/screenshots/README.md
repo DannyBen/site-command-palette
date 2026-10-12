@@ -18,6 +18,7 @@ Edit `config.json` to define shared or per-screenshot commands and these states:
 - `theme`: `light` or `dark`
 - `paletteScope`: `site` or `all`
 - `query`: optional search text; for `edit`, it identifies the command to edit
+- `historyResults`: wait for history results before capturing a list screen
 - `form`: optional stable `site`, `page`, `url`, and `scope` values for add/edit
 - `focus`: optional `Site`, `Page`, `URL`, or `Scope` field for add/edit
 
@@ -26,6 +27,14 @@ scope without recomputing the preset indicator from the offline fixture host.
 
 Commands use `global`, `site`, or a normal scope pattern. A URL beginning with
 `fixture:` points to the local fixture, such as `fixture:/docs`.
+
+The optional top-level `history` array contains sample `url` and `title` entries
+to seed in the temporary Chrome profile. Navigations are fulfilled locally so
+Chrome records the titles without contacting the sample websites.
+When present, history search is enabled for the
+capture session. The generator grants history permission in a temporary extension
+copy because headless Chrome cannot show the permission prompt. The repository's
+manifest and packaged extension keep history permission optional.
 
 Pass another configuration file when experimenting:
 
